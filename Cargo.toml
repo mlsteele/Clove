@@ -4,3 +4,8 @@ version = "0.1.0"
 authors = ["Miles Steele <miles@milessteele.com>"]
 
 [dependencies]
+ocl = "0.15.0"
+image = "0.16.0"
+time = "0.1.38"
+find_folder = "0.3.0"
+colorify = "0.2.2"
