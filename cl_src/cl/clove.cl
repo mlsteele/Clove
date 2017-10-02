@@ -78,8 +78,9 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
     bool live = src_rgba.y > .5;
     for (int dx = 0; dx < 1;  dx++) {
         if (pixel_id.x >= 0) {
-            read_imagef(source, sampler_const, (int2)(0,0));
-            /* read_imagef(source, sampler_const, pixel_id); */
+            /* read_imagef(source, sampler_const, (int2)(0,0)); */
+            get_image_dim(dest);
+            /* get_global_id(0); */
         }
     }
     float4 dest_rgba = (float4)(.2,0,0,1);
