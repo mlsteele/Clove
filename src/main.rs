@@ -8,6 +8,7 @@ use std::path::Path;
 use ocl::{Context, Queue, Device, Program, Image, Kernel};
 use ocl::enums::{ImageChannelOrder, ImageChannelDataType, MemObjectType};
 use find_folder::Search;
+// use image::GenericImage;
 
 fn print_elapsed(title: &str, start: time::Timespec) {
     let time_elapsed = time::get_time() - start;
@@ -40,7 +41,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (200, 200);
+    let dims = (1000, 1000);
 
     let start_pixel: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 0u8, 255u8]};
     let mut src_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
@@ -49,16 +50,6 @@ fn main() {
     // let img = read_source_image("test.jpg");
 
     // let dims = img.dimensions();
-
-    let cl_source = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Rgba)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&src_image)
-        .build().unwrap();
 
     // ##################################################
     // #################### UNROLLED ####################
@@ -77,24 +68,45 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
-    let kernel = Kernel::new("march_penguins", &program).unwrap()
-        .queue(queue.clone())
-        .gws(&dims)
-        .arg_img(&cl_source)
-        .arg_img(&cl_dest);
+    for frame in 1..100 {
+        printlnc!(white_bold: "\nFrame: {}", frame);
 
-    printlnc!(royal_blue: "\nRunning kernel...");
-    printlnc!(white_bold: "image dims: {:?}", &dims);
-    let start_time = time::get_time();
+        let start_time = time::get_time();
 
-    kernel.enq().unwrap();
-    print_elapsed("kernel enqueued", start_time);
+        let cl_source = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&src_image)
+            .build().unwrap();
 
-    queue.finish().unwrap();
-    print_elapsed("queue finished", start_time);
+        print_elapsed("create source", start_time);
 
-    cl_dest.read(&mut result_image).enq().unwrap();
-    print_elapsed("read finished", start_time);
+        let kernel = Kernel::new("march_penguins", &program).unwrap()
+            .queue(queue.clone())
+            .gws(&dims)
+            .arg_img(&cl_source)
+            .arg_img(&cl_dest);
+
+        printlnc!(royal_blue: "Running kernel...");
+        printlnc!(white_bold: "image dims: {:?}", &dims);
+
+        kernel.enq().unwrap();
+        print_elapsed("kernel enqueued", start_time);
+
+        queue.finish().unwrap();
+        print_elapsed("queue finished", start_time);
+
+        cl_dest.read(&mut result_image).enq().unwrap();
+        print_elapsed("read finished", start_time);
+
+        // src_image.copy_from(&result_image, 0, 0);
+        src_image = result_image.clone();
+        print_elapsed("copy", start_time);
+    }
 
     result_image.save(&Path::new("result.png")).unwrap();
 }
