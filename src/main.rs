@@ -40,28 +40,34 @@ fn main() {
         .build(&context)
         .unwrap();
 
+    let dims = (200, 200);
+
+    let start_pixel: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 0u8, 255u8]};
+    let mut src_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, start_pixel);
+
     // let img = read_source_image("test.jpg");
 
     // let dims = img.dimensions();
-    let dims = (200, 200);
 
-    // let cl_source = Image::<u8>::builder()
-    //     .channel_order(ImageChannelOrder::Rgba)
-    //     .channel_data_type(ImageChannelDataType::UnormInt8)
-    //     .image_type(MemObjectType::Image2d)
-    //     .dims(&dims)
-    //     .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
-    //     .queue(queue.clone())
-    //     .host_data(&img)
-    //     .build().unwrap();
+    let cl_source = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Rgba)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&src_image)
+        .build().unwrap();
 
     // ##################################################
     // #################### UNROLLED ####################
     // ##################################################
 
-    let mut result_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(dims.0, dims.1);
+    let mut result_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(
+        dims.0, dims.1);
 
-    let cl_dest_unrolled = Image::<u8>::builder()
+    let cl_dest = Image::<u8>::builder()
         .channel_order(ImageChannelOrder::Rgba)
         .channel_data_type(ImageChannelDataType::UnormInt8)
         .image_type(MemObjectType::Image2d)
@@ -71,12 +77,13 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
-    let kernel = Kernel::new("clove", &program).unwrap()
+    let kernel = Kernel::new("passthru", &program).unwrap()
         .queue(queue.clone())
         .gws(&dims)
-        .arg_img(&cl_dest_unrolled);
+        .arg_img(&cl_source)
+        .arg_img(&cl_dest);
 
-    printlnc!(royal_blue: "\nRunning kernel (unrolled)...");
+    printlnc!(royal_blue: "\nRunning kernel...");
     printlnc!(white_bold: "image dims: {:?}", &dims);
     let start_time = time::get_time();
 
@@ -86,7 +93,7 @@ fn main() {
     queue.finish().unwrap();
     print_elapsed("queue finished", start_time);
 
-    cl_dest_unrolled.read(&mut result_image).enq().unwrap();
+    cl_dest.read(&mut result_image).enq().unwrap();
     print_elapsed("read finished", start_time);
 
     result_image.save(&Path::new("result.png")).unwrap();

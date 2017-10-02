@@ -12,3 +12,9 @@ __kernel void clove(write_only image2d_t dest) {
     const float4 fin_rgba = (float4)(fin_rgb.x, fin_rgb.y, fin_rgb.z, 1);
     write_imagef(dest, pixel_id, fin_rgba);
 }
+
+__kernel void passthru(read_only image2d_t source, write_only image2d_t dest) {
+    const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    float4 rgba = read_imagef(source, sampler_const, pixel_id);
+    write_imagef(dest, pixel_id, rgba);
+}
