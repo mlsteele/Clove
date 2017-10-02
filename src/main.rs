@@ -59,7 +59,7 @@ fn main() {
     // #################### UNROLLED ####################
     // ##################################################
 
-    let mut result_unrolled: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(dims.0, dims.1);
+    let mut result_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(dims.0, dims.1);
 
     let cl_dest_unrolled = Image::<u8>::builder()
         .channel_order(ImageChannelOrder::Rgba)
@@ -68,7 +68,7 @@ fn main() {
         .dims(&dims)
         .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
         .queue(queue.clone())
-        .host_data(&result_unrolled)
+        .host_data(&result_image)
         .build().unwrap();
 
     let kernel = Kernel::new("clove", &program).unwrap()
@@ -86,8 +86,8 @@ fn main() {
     queue.finish().unwrap();
     print_elapsed("queue finished", start_time);
 
-    cl_dest_unrolled.read(&mut result_unrolled).enq().unwrap();
+    cl_dest_unrolled.read(&mut result_image).enq().unwrap();
     print_elapsed("read finished", start_time);
 
-    result_unrolled.save(&Path::new("result_unrolled.png")).unwrap();
+    result_image.save(&Path::new("result.png")).unwrap();
 }
