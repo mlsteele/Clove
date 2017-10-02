@@ -35,57 +35,63 @@ __kernel void march_penguins(read_only image2d_t source, write_only image2d_t de
     write_imagef(dest, pixel_id, rgba);
 }
 
-/* __kernel void life_argh(read_only image2d_t source, write_only image2d_t dest) { */
-/*     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1)); */
-/*     const int2 dims = get_image_dim(dest); */
-/*     const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
-/*     bool live = src_rgba.y > .5; */
-/*     int live_neighbors = 0; */
-/*     for (int dx = -1; dx <= 1;  dx++) { */
-/*         for (int dy = -1; dy <= 1;  dy++) { */
-/*             const int2 loc = pixel_id + (int2)(dx, dy); */
-/*             bool self = (dx == 0 && dy == 0); */
-/*             bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y); */
-/*             /\* bool select = (abs(loc.x - 10) < 5) && (abs(loc.y - 10) < 5); *\/ */
-/*             bool select = true; */
-/*             if (self && in_bounds) { */
-/*                 const float4 rgba_neighbor = read_imagef(source, sampler_const, loc); */
-/*                 /\* const float4 rgba_neighbor = read_imagef(source, sampler_const, pixel_id);   *\/ */
-/*                 if (rgba_neighbor.y > .5) {  */
-/*                     live_neighbors += 1;  */
-/*                 }  */
-/*             } */
-/*         } */
-/*     } */
-/*     if (live_neighbors == 3 || (live && live_neighbors == 2)) { */
-/*         live = true; */
-/*     } */
-/*     /\* live = (bool)((float)src_rgba.y > .5); *\/ */
-/*     float4 dest_rgba = (float4)(.2,0,0,1); */
-/*     if (live) { */
-/*         dest_rgba = (float4)(0,1,1,1); */
-/*     } */
-/*     /\* if (abs(pixel_id.x - 5) <= 2 && abs(pixel_id.y - 5) <= 2) {  *\/ */
-/*     /\*     dest_rgba = (float4)(1,1,1,1);  *\/ */
-/*     /\* }  *\/ */
-/*     write_imagef(dest, pixel_id, dest_rgba); */
-/* } */
-
 __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
     const int2 dims = get_image_dim(dest);
     const float4 src_rgba = read_imagef(source, sampler_const, pixel_id);
     bool live = src_rgba.y > .5;
-    for (int dx = 0; dx < 1;  dx++) {
-        if (pixel_id.x >= 0) {
-            /* read_imagef(source, sampler_const, (int2)(0,0)); */
-            get_image_dim(dest);
-            /* get_global_id(0); */
+    int live_neighbors = 0;
+    for (int dx = -1; dx <= 1;  dx++) {
+        for (int dy = -1; dy <= 1;  dy++) {
+            const int2 loc = pixel_id + (int2)(dx, dy);
+            bool self = (dx == 0 && dy == 0);
+            bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
+            /* bool select = (abs(loc.x - 10) < 5) && (abs(loc.y - 10) < 5); */
+            bool select = true;
+            if (!self && in_bounds) {
+                const float4 rgba_neighbor = read_imagef(source, sampler_const, loc);
+                /* const float4 rgba_neighbor = read_imagef(source, sampler_const, pixel_id);   */
+                if (rgba_neighbor.y > .5) {
+                    live_neighbors += 1;
+                }
+            }
         }
     }
+    if (live_neighbors == 3 || (live && live_neighbors == 2)) {
+        live = true;
+    }
+    /* live = (bool)((float)src_rgba.y > .5); */
     float4 dest_rgba = (float4)(.2,0,0,1);
     if (live) {
         dest_rgba = (float4)(0,1,1,1);
     }
+    if (abs(pixel_id.x - 5) <= 2 && abs(pixel_id.y - 5) <= 2) {
+        dest_rgba = (float4)(1,1,1,1);
+    }
     write_imagef(dest, pixel_id, dest_rgba);
+    if (pixel_id.x < 0) {
+        printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w);
+    }
 }
+
+/* __kernel void life(read_only image2d_t source, write_only image2d_t dest) { */
+/*     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1)); */
+/*     const int2 dims = get_image_dim(dest); */
+/*     const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
+/*     bool live = src_rgba.y > .5; */
+/*     for (int dx = 0; dx < 1;  dx++) { */
+/*         if (pixel_id.x >= 0) { */
+/*             /\* read_imagef(source, sampler_const, (int2)(0,0)); *\/ */
+/*             get_image_dim(dest); */
+/*             /\* get_global_id(0); *\/ */
+/*         } */
+/*     } */
+/*     float4 dest_rgba = (float4)(.2,0,0,1); */
+/*     if (live) { */
+/*         dest_rgba = (float4)(0,1,1,1); */
+/*     } */
+/*     write_imagef(dest, pixel_id, dest_rgba); */
+/*     if (pixel_id.x < 0) { */
+/*         printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w); */
+/*     } */
+/* } */
