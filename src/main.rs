@@ -77,7 +77,7 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
-    let kernel = Kernel::new("passthru", &program).unwrap()
+    let kernel = Kernel::new("march_penguins", &program).unwrap()
         .queue(queue.clone())
         .gws(&dims)
         .arg_img(&cl_source)
