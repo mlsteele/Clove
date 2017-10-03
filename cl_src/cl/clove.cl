@@ -73,10 +73,10 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
     /*     dest_rgba = (float4)(1,1,1,1); */
     /* } */
     write_imagef(dest, pixel_id, dest_rgba);
-    if (pixel_id.x < 0) {
-	// Should neve happens. Just here to work around some bug.
-        printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w);
-    }
+    /* if (pixel_id.x < 0) { */
+    /* 	// Should neve happens. Just here to work around some bug. */
+    /*     printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w); */
+    /* } */
 }
 
 /* __kernel void life(read_only image2d_t source, write_only image2d_t dest) { */

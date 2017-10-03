@@ -52,7 +52,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (300, 300);
+    let dims = (1000, 1000);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
@@ -65,6 +65,7 @@ fn main() {
     src_image.put_pixel(3, 5, white);
     src_image.put_pixel(2, 4, white);
 
+    printlnc!(white_bold: "setting up board");
     for x in 0..dims.0 {
         for y in 0..dims.1 {
             let mut drop = black;
@@ -96,9 +97,10 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
+    printlnc!(white_bold: "saving start image");
     src_image.save(&Path::new("result_0.png")).unwrap();
 
-    for frame in 1..50 {
+    for frame in 1..500 {
         printlnc!(white_bold: "\nFrame: {}", frame);
 
         let start_time = time::get_time();
@@ -137,8 +139,10 @@ fn main() {
         src_image = result_image.clone();
         print_elapsed("copy", start_time);
 
-        result_image.save(&Path::new(&format!("result_{:08}.png", frame))).unwrap();
-        print_elapsed("save", start_time);
+        if frame % 10 == 0 {
+            result_image.save(&Path::new(&format!("result_{:08}.png", frame))).unwrap();
+            print_elapsed("save", start_time);
+        }
     }
 
     result_image.save(&Path::new("result.png")).unwrap();
