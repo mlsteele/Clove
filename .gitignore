@@ -3,3 +3,4 @@
 **/*.rs.bk
 
 /result*.png
+/result*.gif

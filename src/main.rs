@@ -1,3 +1,4 @@
+extern crate rand;
 extern crate find_folder;
 extern crate image;
 extern crate time;
@@ -9,6 +10,7 @@ use ocl::{Context, Queue, Device, Program, Image, Kernel};
 use ocl::enums::{ImageChannelOrder, ImageChannelDataType, MemObjectType};
 use find_folder::Search;
 // use image::GenericImage;
+use rand::Rng;
 
 fn print_elapsed(title: &str, start: time::Timespec) {
     let time_elapsed = time::get_time() - start;
@@ -30,9 +32,18 @@ fn main() {
         .for_folder("cl_src").expect("Error locating 'cl_src'")
         .join("cl/clove.cl");
 
+    println!("getting ocl context...");
     let context = Context::builder().devices(Device::specifier()
         .type_flags(ocl::flags::DEVICE_TYPE_GPU).first()).build().unwrap();
+    println!("devices: ({}) {:?}", context.devices().len(), context.devices());
     let device = context.devices()[0];
+    println!("device: {:?}", device);
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::Name));
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::Vendor));
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::VendorId));
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::Type));
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::Extensions));
+    println!("  {:?}", device.info(ocl::enums::DeviceInfo::OpenclCVersion));
     let queue = Queue::new(&context, device, None).unwrap();
 
     let program = Program::builder()
@@ -41,7 +52,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (3000, 3000);
+    let dims = (300, 300);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
@@ -53,6 +64,16 @@ fn main() {
     src_image.put_pixel(4, 5, white);
     src_image.put_pixel(3, 5, white);
     src_image.put_pixel(2, 4, white);
+
+    for x in 0..dims.0 {
+        for y in 0..dims.1 {
+            let mut drop = black;
+            if rand::thread_rng().next_f64() > 0.4 {
+                drop = white;
+            }
+            src_image.put_pixel(x, y, drop);
+        }
+    }
 
     // let img = read_source_image("test.jpg");
 
@@ -75,7 +96,7 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
-    // src_image.save(&Path::new("result_0.png")).unwrap();
+    src_image.save(&Path::new("result_0.png")).unwrap();
 
     for frame in 1..50 {
         printlnc!(white_bold: "\nFrame: {}", frame);
@@ -116,8 +137,8 @@ fn main() {
         src_image = result_image.clone();
         print_elapsed("copy", start_time);
 
-        // result_image.save(&Path::new(&format!("result_{}.png", frame))).unwrap();
-        // print_elapsed("save", start_time);
+        result_image.save(&Path::new(&format!("result_{:08}.png", frame))).unwrap();
+        print_elapsed("save", start_time);
     }
 
     result_image.save(&Path::new("result.png")).unwrap();
