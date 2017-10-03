@@ -50,26 +50,31 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
             bool select = true;
             if (!self && in_bounds) {
                 const float4 rgba_neighbor = read_imagef(source, sampler_const, loc);
-                /* const float4 rgba_neighbor = read_imagef(source, sampler_const, pixel_id);   */
                 if (rgba_neighbor.y > .5) {
                     live_neighbors += 1;
                 }
             }
         }
     }
+    /* if (live_neighbors > 0) { */
+    /* 	printf("px: %d %d: live:%d neighbors:%d\n", pixel_id.x, pixel_id.y, */
+    /* 	       live, live_neighbors); */
+    /* } */
     if (live_neighbors == 3 || (live && live_neighbors == 2)) {
         live = true;
+    } else {
+	live = false;
     }
-    /* live = (bool)((float)src_rgba.y > .5); */
     float4 dest_rgba = (float4)(.2,0,0,1);
     if (live) {
         dest_rgba = (float4)(0,1,1,1);
     }
-    if (abs(pixel_id.x - 5) <= 2 && abs(pixel_id.y - 5) <= 2) {
-        dest_rgba = (float4)(1,1,1,1);
-    }
+    /* if (abs(pixel_id.x - 5) <= 2 && abs(pixel_id.y - 5) <= 2) { */
+    /*     dest_rgba = (float4)(1,1,1,1); */
+    /* } */
     write_imagef(dest, pixel_id, dest_rgba);
     if (pixel_id.x < 0) {
+	// Should neve happens. Just here to work around some bug.
         printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w);
     }
 }

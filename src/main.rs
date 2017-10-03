@@ -41,17 +41,18 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (30,30);
+    let dims = (3000, 3000);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
     // let start_pixel: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
     let mut src_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
-    // src_image.put_pixel(3,3,white);
-    // src_image.put_pixel(3,4,white);
-    // src_image.put_pixel(4,3,white);
-    // src_image.put_pixel(2,3,white);
+    src_image.put_pixel(4, 3, white);
+    src_image.put_pixel(4, 4, white);
+    src_image.put_pixel(4, 5, white);
+    src_image.put_pixel(3, 5, white);
+    src_image.put_pixel(2, 4, white);
 
     // let img = read_source_image("test.jpg");
 
@@ -74,7 +75,9 @@ fn main() {
         .host_data(&result_image)
         .build().unwrap();
 
-    for frame in 1..30 {
+    // src_image.save(&Path::new("result_0.png")).unwrap();
+
+    for frame in 1..50 {
         printlnc!(white_bold: "\nFrame: {}", frame);
 
         let start_time = time::get_time();
@@ -112,6 +115,9 @@ fn main() {
         // src_image.copy_from(&result_image, 0, 0);
         src_image = result_image.clone();
         print_elapsed("copy", start_time);
+
+        // result_image.save(&Path::new(&format!("result_{}.png", frame))).unwrap();
+        // print_elapsed("save", start_time);
     }
 
     result_image.save(&Path::new("result.png")).unwrap();
