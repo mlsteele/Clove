@@ -19,13 +19,12 @@ fn print_elapsed(title: &str, start: time::Timespec) {
     println!("    {}{}{}.{:03}", title, separator, time_elapsed.num_seconds(), elapsed_ms);
 }
 
-
+#[allow(dead_code)]
 fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     let dyn = image::open(&Path::new(loco)).unwrap();
     let img = dyn.to_rgba();
     img
 }
-
 
 fn main() {
     let compute_program = Search::ParentsThenKids(3, 3)
@@ -52,18 +51,24 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (1000, 1000);
+    let dims = (100, 100);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
     // let start_pixel: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
-    let mut src_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+    let mut img_src: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
-    src_image.put_pixel(4, 3, white);
-    src_image.put_pixel(4, 4, white);
-    src_image.put_pixel(4, 5, white);
-    src_image.put_pixel(3, 5, white);
-    src_image.put_pixel(2, 4, white);
+    img_src.put_pixel(4, 3, white);
+    img_src.put_pixel(4, 4, white);
+    img_src.put_pixel(4, 5, white);
+    img_src.put_pixel(3, 5, white);
+    img_src.put_pixel(2, 4, white);
+
+    let img_mask: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, image::Luma{data: [255u8]});
+
+    let mut img_score: image::ImageBuffer<image::Luma<u16>, Vec<u16>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, image::Luma{data: [0u16]});
 
     printlnc!(white_bold: "setting up board");
     for x in 0..dims.0 {
@@ -72,7 +77,7 @@ fn main() {
             if rand::thread_rng().next_f64() > 0.4 {
                 drop = white;
             }
-            src_image.put_pixel(x, y, drop);
+            img_src.put_pixel(x, y, drop);
         }
     }
 
@@ -80,48 +85,67 @@ fn main() {
 
     // let dims = img.dimensions();
 
-    // ##################################################
-    // #################### UNROLLED ####################
-    // ##################################################
-
-    let mut result_image: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(
+    let mut img_dest: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::new(
         dims.0, dims.1);
 
-    let cl_dest = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Rgba)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&result_image)
-        .build().unwrap();
-
     printlnc!(white_bold: "saving start image");
-    src_image.save(&Path::new("result_0.png")).unwrap();
+    img_src.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
 
-    for frame in 1..500 {
+    for frame in 1..2 {
         printlnc!(white_bold: "\nFrame: {}", frame);
 
         let start_time = time::get_time();
 
-        let cl_source = Image::<u8>::builder()
+        let cl_in_source = Image::<u8>::builder()
             .channel_order(ImageChannelOrder::Rgba)
             .channel_data_type(ImageChannelDataType::UnormInt8)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
             .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
             .queue(queue.clone())
-            .host_data(&src_image)
+            .host_data(&img_src)
             .build().unwrap();
 
-        print_elapsed("create source", start_time);
+        let cl_in_mask = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Luminance)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_mask)
+            .build().unwrap();
 
-        let kernel = Kernel::new("life", &program).unwrap()
+        let cl_out_score = Image::<u16>::builder()
+            .channel_order(ImageChannelOrder::Luminance)
+            .channel_data_type(ImageChannelDataType::UnormInt16)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_score)
+            .build().unwrap();
+
+        let cl_out_dest = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_dest)
+            .build().unwrap();
+
+        print_elapsed("created memory bindings", start_time);
+
+        let goal = ocl::prm::Float4::new(0., 0., 0., 1.);
+        let kernel = Kernel::new("score", &program).unwrap()
             .queue(queue.clone())
             .gws(&dims)
-            .arg_img(&cl_source)
-            .arg_img(&cl_dest);
+            .arg_img(&cl_in_source)
+            .arg_img(&cl_in_mask)
+            .arg_vec(goal)
+            .arg_img(&cl_out_score);
 
         printlnc!(royal_blue: "Running kernel...");
         printlnc!(white_bold: "image dims: {:?}", &dims);
@@ -132,18 +156,29 @@ fn main() {
         queue.finish().unwrap();
         print_elapsed("queue finished", start_time);
 
-        cl_dest.read(&mut result_image).enq().unwrap();
+        cl_out_dest.read(&mut img_dest).enq().unwrap();
+        cl_out_score.read(&mut img_score).enq().unwrap();
         print_elapsed("read finished", start_time);
 
-        // src_image.copy_from(&result_image, 0, 0);
-        src_image = result_image.clone();
+        // img_src.copy_from(&img_dest, 0, 0);
+        img_src = img_dest.clone();
         print_elapsed("copy", start_time);
 
-        if frame % 10 == 0 {
-            result_image.save(&Path::new(&format!("result_{:08}.png", frame))).unwrap();
+        if frame % 1 == 0 {
+            img_dest.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
+
+            {
+                let buf: Vec<u8> = img_score.clone().into_raw().iter().map(|px| {
+                    (px >> 8) as u8
+                }).collect();
+                let img2: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
+                    dims.0, dims.1, buf).unwrap();
+                img2
+            }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
+
             print_elapsed("save", start_time);
         }
     }
 
-    result_image.save(&Path::new("result.png")).unwrap();
+    img_dest.save(&Path::new("result.png")).unwrap();
 }

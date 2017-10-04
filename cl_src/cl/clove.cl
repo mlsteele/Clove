@@ -100,3 +100,50 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
 /*         printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w); */
 /*     } */
 /* } */
+
+// How different are these colors?
+// Returns [0, 1] where 0 is most similar.
+float color_distance(float4 rgba1, float4 rgba2) {
+    const float r = rgba1.x - rgba2.x;
+    const float g = rgba1.y - rgba2.y;
+    const float b = rgba1.z - rgba2.z;
+    return (r * r + g * g + b * b) / 3;
+}
+
+// Score each location based on how close it is to the target color.
+// Only score against pixels that are white on the mask.
+__kernel void score(
+    read_only image2d_t source,
+    read_only image2d_t mask,
+    float4 goal,
+    write_only image2d_t dest)
+{
+    const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    const int2 dims = get_image_dim(dest);
+    /* const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
+    float acc = 0;
+    int n_scored_neighbors = 0;
+    for (int dx = -1; dx <= 1;  dx++) {
+        for (int dy = -1; dy <= 1;  dy++) {
+            const int2 loc = pixel_id + (int2)(dx, dy);
+            bool self = (dx == 0 && dy == 0);
+            bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
+            bool select = true;
+            if (!self && in_bounds) {
+                const float4 mask_neighbor = read_imagef(mask, sampler_const, loc);
+                if (mask_neighbor.x > .5) {
+                    const float4 rgba_neighbor = read_imagef(source, sampler_const, loc);
+                    n_scored_neighbors += 1;
+                    acc += color_distance(goal, rgba_neighbor);
+                }
+            }
+        }
+    }
+    acc /= n_scored_neighbors;
+    float4 dest_rgba = (float4)(acc, 0, 0, 1);
+    write_imagef(dest, pixel_id, dest_rgba);
+    /* if (live_neighbors > 0) { */
+    /* 	printf("px: %d %d: live:%d neighbors:%d\n", pixel_id.x, pixel_id.y, */
+    /* 	       live, live_neighbors); */
+    /* } */
+}
