@@ -109,7 +109,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (100, 100);
+    let dims: (u32, u32) = (1000, 1000);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
@@ -170,7 +170,7 @@ fn main() {
         where I: image::GenericImage<Pixel=image::Rgba<u8>>,
               M: image::GenericImage<Pixel=image::Luma<u8>>
     {
-        printlnc!(red: "placing {} {}", x, y);
+        // printlnc!(red: "placing {} {}", x, y);
         canvas.put_pixel(x, y, color);
         // Mark as filled
         mask_filled.put_pixel(x, y, MASK_WHITE);
@@ -205,7 +205,9 @@ fn main() {
     img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
 
     for frame in 1..(dims.0 * dims.1) {
-        printlnc!(white_bold: "\nFrame: {}", frame);
+        let talk: bool = frame % 200 == 0;
+
+        if talk { printlnc!(white_bold: "\nFrame: {}", frame) };
 
         let start_time = time::get_time();
 
@@ -239,7 +241,7 @@ fn main() {
             .host_data(&img_score)
             .build().unwrap();
 
-        print_elapsed("created memory bindings", start_time);
+        if talk { print_elapsed("created memory bindings", start_time); }
 
         let target = color_queue.pop_front();
         if target.is_none() {
@@ -262,17 +264,17 @@ fn main() {
             .arg_vec(goal)
             .arg_img(&cl_out_score);
 
-        printlnc!(royal_blue: "Running kernel...");
-        printlnc!(white_bold: "image dims: {:?}", &dims);
+        if talk { printlnc!(royal_blue: "Running kernel..."); }
+        if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
 
         kernel.enq().unwrap();
-        print_elapsed("kernel enqueued", start_time);
+        if talk { print_elapsed("kernel enqueued", start_time); }
 
         queue.finish().unwrap();
-        print_elapsed("queue finished", start_time);
+        if talk { print_elapsed("queue finished", start_time); }
 
         cl_out_score.read(&mut img_score).enq().unwrap();
-        print_elapsed("read finished", start_time);
+        if talk { print_elapsed("read finished", start_time); }
 
         // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
         // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();
@@ -285,8 +287,7 @@ fn main() {
                 panic!("no viable pixels");
             }
         }
-
-        print_elapsed("placed", start_time);
+        if talk { print_elapsed("placed", start_time); }
 
         if frame % 1000 == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
@@ -300,6 +301,7 @@ fn main() {
             //     img2
             // }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
 
+            printlnc!(white_bold: "\nFrame: {}", frame);
             print_elapsed("save", start_time);
         }
     }
