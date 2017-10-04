@@ -110,7 +110,7 @@ float color_distance(float4 rgba1, float4 rgba2) {
     return (r * r + g * g + b * b) / 3;
 }
 
-// Score each location based on how close it is to the target color.
+// Score each location based on how close its neighbors are to the goal color.
 // Only score against pixels that are white on the mask.
 __kernel void score(
     read_only image2d_t source,
@@ -139,7 +139,11 @@ __kernel void score(
             }
         }
     }
-    acc /= n_scored_neighbors;
+    if (n_scored_neighbors == 0) {
+        acc = INFINITY;
+    } else {
+        acc /= n_scored_neighbors;
+    }
     float4 dest_rgba = (float4)(acc, 0, 0, 1);
     write_imagef(dest, pixel_id, dest_rgba);
     /* if (live_neighbors > 0) { */
