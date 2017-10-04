@@ -52,7 +52,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims = (1000, 1000);
+    let dims = (200, 200);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
@@ -98,7 +98,7 @@ fn main() {
         .build().unwrap();
 
     printlnc!(white_bold: "saving start image");
-    src_image.save(&Path::new("result_0.png")).unwrap();
+    src_image.save(&Path::new(&format!("result_{:08}.png", 0))).unwrap();
 
     for frame in 1..500 {
         printlnc!(white_bold: "\nFrame: {}", frame);
