@@ -104,10 +104,15 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
 // How different are these colors?
 // Returns [0, 1] where 0 is most similar.
 float color_distance(float4 rgba1, float4 rgba2) {
-    const float r = rgba1.x - rgba2.x;
-    const float g = rgba1.y - rgba2.y;
-    const float b = rgba1.z - rgba2.z;
-    return (r * r + g * g + b * b) / 3;
+    /* const float r = rgba1.x - rgba2.x; */
+    /* const float g = rgba1.y - rgba2.y; */
+    /* const float b = rgba1.z - rgba2.z; */
+    /* return (r * r + g * g + b * b) / 3; */
+
+    const float r = fabs(rgba1.x - rgba2.x);
+    const float g = fabs(rgba1.y - rgba2.y);
+    const float b = fabs(rgba1.z - rgba2.z);
+    return (r + g + b ) / 3; 
 }
 
 // Score each location based on how close its neighbors are to the goal color.
@@ -121,7 +126,12 @@ __kernel void score(
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
     const int2 dims = get_image_dim(dest);
     /* const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
+
+    // Whether to use average of minimum of the neighbors as the score.
+    const bool alg_avg = true;
+
     float acc = 0;
+    float min_neighbor_score = INFINITY;
     int n_scored_neighbors = 0;
     for (int dx = -1; dx <= 1;  dx++) {
         for (int dy = -1; dy <= 1;  dy++) {
@@ -134,7 +144,11 @@ __kernel void score(
                 if (mask_neighbor.x > .5) {
                     const float4 rgba_neighbor = read_imagef(source, sampler_const, loc);
                     n_scored_neighbors += 1;
-                    acc += color_distance(goal, rgba_neighbor);
+                    const float neighbor_score = color_distance(goal, rgba_neighbor);
+                    acc += neighbor_score;
+                    if (neighbor_score < min_neighbor_score) {
+                        min_neighbor_score = neighbor_score;
+                    }
                 }
             }
         }
@@ -144,7 +158,11 @@ __kernel void score(
     } else {
         acc /= n_scored_neighbors;
     }
-    float4 dest_rgba = (float4)(acc, 0, 0, 1);
+    float dest_val = min_neighbor_score;
+    if (alg_avg) {
+        dest_val = acc;
+    }
+    float4 dest_rgba = (float4)(dest_val, 0, 0, 1);
     write_imagef(dest, pixel_id, dest_rgba);
     /* if (live_neighbors > 0) { */
     /* 	printf("px: %d %d: live:%d neighbors:%d\n", pixel_id.x, pixel_id.y, */

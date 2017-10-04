@@ -109,7 +109,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (1000, 1000);
+    let dims: (u32, u32) = (200, 200);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
@@ -152,19 +152,6 @@ fn main() {
     let mut img_score: image::ImageBuffer<image::Luma<u16>, Vec<u16>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, image::Luma{data: [0u16]});
 
-    // let mut place_pixel = |x: u32, y: u32, color: image::Rgba<u8>| {
-    //     printlnc!(red: "placing {} {}", x, y);
-    //     img_canvas.put_pixel(x, y, color);
-    //     // Mark as filled
-    //     img_mask_filled.put_pixel(x, y, MASK_WHITE);
-    //     // Remove from frontier
-    //     img_mask_frontier.put_pixel(x, y, MASK_BLACK);
-    //     // Add neighbors to frontier
-    //     for &(nx, ny) in neighbors_empty(x, y, &img_mask_filled).iter() {
-    //         img_mask_frontier.put_pixel(nx, ny, MASK_WHITE);
-    //     }
-    // };
-
     fn place_pixel<I,M>(x: u32, y: u32, color: image::Rgba<u8>,
                    canvas: &mut I, mask_filled: &mut M, mask_frontier: &mut M)
         where I: image::GenericImage<Pixel=image::Rgba<u8>>,
@@ -204,8 +191,9 @@ fn main() {
     printlnc!(white_bold: "saving start image");
     img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
 
-    for frame in 1..(dims.0 * dims.1) {
+    'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % 200 == 0;
+        // let talk: bool = true;
 
         if talk { printlnc!(white_bold: "\nFrame: {}", frame) };
 
@@ -276,35 +264,42 @@ fn main() {
         cl_out_score.read(&mut img_score).enq().unwrap();
         if talk { print_elapsed("read finished", start_time); }
 
-        // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
-        // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();
+        let mut overdrive = 1;
+        // if frame > 200 {
+        //     overdrive = 500;
+        // }
 
-        {
+        for _ in 0..overdrive {
             if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
                 place_pixel(x, y, target,
                             &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
             } else {
-                panic!("no viable pixels");
+                printlnc!(royal_blue: "no viable pixels");
+                break 'outer;
             }
         }
+
         if talk { print_elapsed("placed", start_time); }
 
-        if frame % 1000 == 0 {
+        if frame % 200 == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
 
-            // {
-            //     let buf: Vec<u8> = img_score.clone().into_raw().iter().map(|px| {
-            //         (px >> 8) as u8
-            //     }).collect();
-            //     let img2: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
-            //         dims.0, dims.1, buf).unwrap();
-            //     img2
-            // }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
+            // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
+            // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();
 
-            printlnc!(white_bold: "\nFrame: {}", frame);
+            {
+                let buf: Vec<u8> = img_score.clone().into_raw().iter().map(|px| {
+                    (px >> 8) as u8
+                }).collect();
+                let img2: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
+                    dims.0, dims.1, buf).unwrap();
+                img2
+            }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
+
             print_elapsed("save", start_time);
         }
     }
 
+    printlnc!(white_bold: "saving final");
     img_canvas.save(&Path::new("result.png")).unwrap();
 }
