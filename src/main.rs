@@ -100,8 +100,10 @@ fn main() {
     printlnc!(white_bold: "saving start image");
     src_image.save(&Path::new(&format!("result_{:08}.png", 0))).unwrap();
 
-    for frame in 1..500 {
-        printlnc!(white_bold: "\nFrame: {}", frame);
+    for frame in 1..6000 {
+        let talk = frame % 200 == 0;
+
+        if talk { printlnc!(white_bold: "\nFrame: {}", frame); }
 
         let start_time = time::get_time();
 
@@ -115,7 +117,7 @@ fn main() {
             .host_data(&src_image)
             .build().unwrap();
 
-        print_elapsed("create source", start_time);
+        if talk { print_elapsed("create source", start_time); }
 
         let kernel = Kernel::new("life", &program).unwrap()
             .queue(queue.clone())
@@ -123,25 +125,25 @@ fn main() {
             .arg_img(&cl_source)
             .arg_img(&cl_dest);
 
-        printlnc!(royal_blue: "Running kernel...");
-        printlnc!(white_bold: "image dims: {:?}", &dims);
+        if talk { printlnc!(royal_blue: "Running kernel..."); }
+        if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
 
         kernel.enq().unwrap();
-        print_elapsed("kernel enqueued", start_time);
+        if talk { print_elapsed("kernel enqueued", start_time); }
 
         queue.finish().unwrap();
-        print_elapsed("queue finished", start_time);
+        if talk { print_elapsed("queue finished", start_time); }
 
         cl_dest.read(&mut result_image).enq().unwrap();
-        print_elapsed("read finished", start_time);
+        if talk { print_elapsed("read finished", start_time); }
 
         // src_image.copy_from(&result_image, 0, 0);
         src_image = result_image.clone();
-        print_elapsed("copy", start_time);
+        if talk { print_elapsed("copy", start_time); }
 
         if frame % 10 == 0 {
             result_image.save(&Path::new(&format!("result_{:08}.png", frame))).unwrap();
-            print_elapsed("save", start_time);
+            if talk { print_elapsed("save", start_time); }
         }
     }
 
