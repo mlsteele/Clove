@@ -19,14 +19,6 @@ fn print_elapsed(title: &str, start: time::Timespec) {
     println!("    {}{}{}.{:03}", title, separator, time_elapsed.num_seconds(), elapsed_ms);
 }
 
-
-fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
-    let dyn = image::open(&Path::new(loco)).unwrap();
-    let img = dyn.to_rgba();
-    img
-}
-
-
 fn main() {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
@@ -100,7 +92,7 @@ fn main() {
     printlnc!(white_bold: "saving start image");
     src_image.save(&Path::new(&format!("result_{:08}.png", 0))).unwrap();
 
-    for frame in 1..6000 {
+    for frame in 1..2000 {
         let talk = frame % 200 == 0;
 
         if talk { printlnc!(white_bold: "\nFrame: {}", frame); }
@@ -119,11 +111,20 @@ fn main() {
 
         if talk { print_elapsed("create source", start_time); }
 
-        let kernel = Kernel::new("life", &program).unwrap()
-            .queue(queue.clone())
-            .gws(&dims)
-            .arg_img(&cl_source)
-            .arg_img(&cl_dest);
+        let kernel = if frame % 4 == 0 {
+            Kernel::new("fisheye", &program).unwrap()
+                .queue(queue.clone())
+                .gws(&dims)
+                .arg_img(&cl_source)
+                .arg_scl(ocl::prm::Int::new(frame))
+                .arg_img(&cl_dest)
+        } else {
+            Kernel::new("life", &program).unwrap()
+                .queue(queue.clone())
+                .gws(&dims)
+                .arg_img(&cl_source)
+                .arg_img(&cl_dest)
+        };
 
         if talk { printlnc!(royal_blue: "Running kernel..."); }
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }

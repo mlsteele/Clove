@@ -79,24 +79,29 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
     /* } */
 }
 
-/* __kernel void life(read_only image2d_t source, write_only image2d_t dest) { */
-/*     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1)); */
-/*     const int2 dims = get_image_dim(dest); */
-/*     const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
-/*     bool live = src_rgba.y > .5; */
-/*     for (int dx = 0; dx < 1;  dx++) { */
-/*         if (pixel_id.x >= 0) { */
-/*             /\* read_imagef(source, sampler_const, (int2)(0,0)); *\/ */
-/*             get_image_dim(dest); */
-/*             /\* get_global_id(0); *\/ */
-/*         } */
-/*     } */
-/*     float4 dest_rgba = (float4)(.2,0,0,1); */
-/*     if (live) { */
-/*         dest_rgba = (float4)(0,1,1,1); */
-/*     } */
-/*     write_imagef(dest, pixel_id, dest_rgba); */
-/*     if (pixel_id.x < 0) { */
-/*         printf("px: %f %f %f %f\n", src_rgba.x, src_rgba.y, src_rgba.z, src_rgba.w); */
-/*     } */
-/* } */
+float dist_xy(const int2 a, const int2 b) {
+    const float diff = 
+        (a.x - b.x) * (a.x - b.x)
+        +
+        (a.y - b.y) * (a.y - b.y);
+    return sqrt(diff);
+}
+
+// Distort the image. Push out from a fisheye.
+__kernel void fisheye(read_only image2d_t source, int frame, write_only image2d_t dest) {
+    const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    const int2 dims = get_image_dim(dest);
+    // center of the fisheye
+    int2 focus = (int2)(dims.x / 2, dims.y / 2);
+    const float t = convert_float(frame) / 500;
+    focus += convert_int2((float2)(cos(t) * 50 * sin(t / 2), sin(t) * 50));
+    const int2 diff = focus - pixel_id;
+    // distance from the center
+    const float dist = length(convert_float2(diff));
+    // where to read from source
+    const float factor = -1.0 / dist * (2000/dist/dist);
+    const int2 from = pixel_id + convert_int2((float2)(diff.x * factor, diff.y * factor));
+    const int2 from_clamped = clamp(from, (int2)(0,0), dims);
+    const float4 src_rgba = read_imagef(source, sampler_const, from_clamped);
+    write_imagef(dest, pixel_id, src_rgba);
+}
