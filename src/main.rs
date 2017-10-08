@@ -33,10 +33,10 @@ fn min_pixel<I>(img: &I) -> (u32, u32, u16)
     (x, y, px.data[0])
 }
 
-// Minimum value pixel in the img.
+// Pixels sorted by value.
 // Only consider those pixels where mask is hot.
-// Returns None if there are no viable pixels.
-fn min_pixel_with_mask<I,M>(img: &I, mask: &M) -> Option<(u32, u32, u16)>
+// Returns list of (x, y, pixel_value)
+fn sort_pixels_with_mask<I,M>(img: &I, mask: &M) -> Vec<(u32, u32, u16)>
     where I: image::GenericImage<Pixel=image::Luma<u16>>,
           M: image::GenericImage<Pixel=image::Luma<u8>>
 {
@@ -49,6 +49,18 @@ fn min_pixel_with_mask<I,M>(img: &I, mask: &M) -> Option<(u32, u32, u16)>
     }).collect();
     // .min_by_key(|&(_,_,px)| px)
     choices.sort_unstable_by_key(|&(_,_,px)| px);
+    choices
+}
+
+// Minimum value pixel in the img.
+// Only consider those pixels where mask is hot.
+// Returns None if there are no viable pixels.
+#[allow(dead_code)]
+fn min_pixel_with_mask<I,M>(img: &I, mask: &M) -> Option<(u32, u32, u16)>
+    where I: image::GenericImage<Pixel=image::Luma<u16>>,
+          M: image::GenericImage<Pixel=image::Luma<u8>>
+{
+    let choices = sort_pixels_with_mask(img, mask);
     choices.first().map(|x| *x)
 }
 
@@ -107,7 +119,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (512, 512);
+    let dims: (u32, u32) = (2000, 2000);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
@@ -222,13 +234,13 @@ fn main() {
     let mut kernel = Kernel::new("score", &program).unwrap()
         .queue(queue.clone())
         .gws(&dims)
-        .arg_img(&cl_in_canvas)
-        .arg_img(&cl_in_mask_filled)
+        .arg_img_named("canvas", Some(&cl_in_canvas))
+        .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
         .arg_vec_named::<ocl::prm::Float4>("goal", None)
         .arg_img(&cl_out_score);
 
     let talk_every = 200;
-    let save_every = 2000;
+    let save_every = 1000;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -240,8 +252,31 @@ fn main() {
 
         if talk { tracer.stage("create memory bindings") };
 
-        cl_in_canvas.write(&img_canvas).enq().unwrap();
-        cl_in_mask_filled.write(&img_mask_filled).enq().unwrap();
+        let cl_in_canvas = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_canvas)
+            .build().unwrap();
+
+        let cl_in_mask_filled = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Luminance)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_mask_filled)
+            .build().unwrap();
+
+        // cl_in_canvas.write(&img_canvas).enq().unwrap();
+        // cl_in_mask_filled.write(&img_mask_filled).enq().unwrap();
+
+        kernel.set_arg_img_named("canvas", Some(&cl_in_canvas)).unwrap();
+        kernel.set_arg_img_named("mask_filled", Some(&cl_in_mask_filled)).unwrap();
 
         let target = color_queue.pop_front();
         if target.is_none() {
@@ -271,13 +306,28 @@ fn main() {
         cl_out_score.read(&mut img_score).enq().unwrap();
         if talk { tracer.stage("pick"); }
 
-        if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
-            if talk { tracer.stage("place"); }
-            place_pixel(x, y, target,
-                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        if talk { tracer.stage("place"); }
+        // if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
+        //     place_pixel(x, y, target,
+        //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        // } else {
+        //     printlnc!(royal_blue: "no viable pixels");
+        //     break 'outer;
+        // }
+
+        let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
+        if frame < 1000 {
+            choices.truncate(1);
         } else {
+            choices.truncate(100);
+        }
+        if choices.len() == 0 {
             printlnc!(royal_blue: "no viable pixels");
             break 'outer;
+        }
+        for &(x,y,_) in choices.iter() {
+            place_pixel(x, y, target,
+                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         }
 
         if talk { tracer.stage("save"); }
