@@ -119,7 +119,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (2000, 2000);
+    let dims: (u32, u32) = (512, 512);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
@@ -307,28 +307,29 @@ fn main() {
         if talk { tracer.stage("pick"); }
 
         if talk { tracer.stage("place"); }
-        // if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
-        //     place_pixel(x, y, target,
-        //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        // } else {
-        //     printlnc!(royal_blue: "no viable pixels");
-        //     break 'outer;
-        // }
 
-        let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
-        if frame < 1000 {
-            choices.truncate(1);
+        if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
+            place_pixel(x, y, target,
+                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         } else {
-            choices.truncate(100);
-        }
-        if choices.len() == 0 {
             printlnc!(royal_blue: "no viable pixels");
             break 'outer;
         }
-        for &(x,y,_) in choices.iter() {
-            place_pixel(x, y, target,
-                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        }
+
+        // let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
+        // if frame < 1000 {
+        //     choices.truncate(1);
+        // } else {
+        //     choices.truncate(100);
+        // }
+        // if choices.len() == 0 {
+        //     printlnc!(royal_blue: "no viable pixels");
+        //     break 'outer;
+        // }
+        // for &(x,y,_) in choices.iter() {
+        //     place_pixel(x, y, target,
+        //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        // }
 
         if talk { tracer.stage("save"); }
 
