@@ -53,14 +53,16 @@ fn min_pixel_with_mask<I,M>(img: &I, mask: &M) -> Option<(u32, u32, u16)>
     where I: image::GenericImage<Pixel=image::Luma<u16>>,
           M: image::GenericImage<Pixel=image::Luma<u8>>
 {
-    img.pixels().zip(mask.pixels()).filter_map(|((x,y,px), (_,_,map_px))| {
+    let mut choices: Vec<(u32,u32,u16)> = img.pixels().zip(mask.pixels()).filter_map(|((x,y,px), (_,_,map_px))| {
         if map_px.data[0] > 127u8 {
             Some((x,y,px.data[0]))
         } else {
             None
         }
-    })
-        .min_by_key(|&(_,_,px)| px)
+    }).collect();
+    // .min_by_key(|&(_,_,px)| px)
+    choices.sort_unstable_by_key(|&(_,_,px)| px);
+    choices.first().map(|x| *x)
 }
 
 // The neighbors of the position that are not filled
@@ -200,8 +202,11 @@ fn main() {
     printlnc!(white_bold: "saving start image");
     img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
 
+    let talk_every = 200;
+    let save_every = 2000;
+
     'outer: for frame in 1..(dims.0 * dims.1) {
-        let talk: bool = frame % 200 == 0;
+        let talk: bool = frame % talk_every == 0;
         // let talk: bool = true;
 
         let mut tracer = TimeTracer::new("frame");
@@ -287,7 +292,7 @@ fn main() {
 
         if talk { tracer.stage("save"); }
 
-        if frame % 1000 == 0 {
+        if frame % save_every == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
 
             // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
