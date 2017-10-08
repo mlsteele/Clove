@@ -18,19 +18,6 @@ use tracer::TimeTracer;
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
 
-fn print_elapsed(title: &str, start: time::Timespec) {
-    let time_elapsed = time::get_time() - start;
-    let separator = if title.len() > 0 { ": " } else { "" };
-    // let elapsed_sec = time_elapsed.num_seconds();
-    // let elapsed_ms = time_elapsed.num_milliseconds();
-    let us_str = if let Some(elapsed_us) = time_elapsed.num_microseconds() {
-        format!("{}", elapsed_us)
-    } else {
-        "OVERFLOW".to_owned()
-    };
-    println!("    {}{}{:03} us", title, separator, us_str);
-}
-
 #[allow(dead_code)]
 fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
     let dyn = image::open(&Path::new(loco)).unwrap();
@@ -215,8 +202,6 @@ fn main() {
 
         if talk { tracer.stage("create memory bindings") };
 
-        let start_time = time::get_time();
-
         let cl_in_canvas = Image::<u8>::builder()
             .channel_order(ImageChannelOrder::Rgba)
             .channel_data_type(ImageChannelDataType::UnormInt8)
@@ -306,8 +291,6 @@ fn main() {
             //         dims.0, dims.1, buf).unwrap();
             //     img2
             // }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
-
-            print_elapsed("save", start_time);
         }
 
         if talk { tracer.finish(); }
