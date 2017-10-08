@@ -8,14 +8,30 @@ extern crate time;
 
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL, EventLoop,
-    Flip, Texture, TextureSettings,
+    Texture, TextureSettings,
 };
+use std::thread;
+use std::sync::{Arc,RwLock};
 
 mod gpu;
 mod tracer;
 
 fn main() {
-    // gpu::run_gpu_loop();
+    let dims: (u32, u32) = (512, 512);
+
+    let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
+    let img_canvas_shared: Arc<_> = {
+        let img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+            dims.0, dims.1, black);
+        Arc::new(RwLock::new(img_canvas))
+    };
+
+    {
+        let img_canvas_shared = Arc::clone(&img_canvas_shared);
+        thread::spawn(move || {
+            gpu::run_gpu_loop(img_canvas_shared);
+        });
+    }
 
     let opengl = OpenGL::V3_2;
     let mut window: PistonWindow =
@@ -25,26 +41,16 @@ fn main() {
         .build()
         .unwrap();
 
-    let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
-    let img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        512, 512, black);
-
-    // let assets = find_folder::Search::ParentsThenKids(3, 3)
-    //     .for_folder("assets").unwrap();
-    // let rust_logo = assets.join("rust.png");
-    // let rust_logo = Texture::from_path(
-    //         &mut window.factory,
-    //         &rust_logo,
-    //         Flip::None,
-    //         &TextureSettings::new()
-    //     ).unwrap();
-    let texture = Texture::from_image(
-            &mut window.factory,
-            &img_canvas,
-            &TextureSettings::new()
-        ).unwrap();
-    window.set_lazy(true);
+    // window.set_lazy(true);
     while let Some(e) = window.next() {
+        let img_canvas = img_canvas_shared.read().unwrap();
+
+        let texture = Texture::from_image(
+                &mut window.factory,
+                &img_canvas,
+                &TextureSettings::new()
+            ).unwrap();
+
         window.draw_2d(&e, |c, g| {
             piston_window::clear([1.,1.,0.,1.], g);
             piston_window::image(&texture, c.transform, g);

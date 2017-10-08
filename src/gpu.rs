@@ -8,6 +8,7 @@ use find_folder::Search;
 use rand::Rng;
 use std::collections::vec_deque::VecDeque;
 use tracer::TimeTracer;
+use std::sync::{Arc,RwLock};
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
@@ -88,7 +89,7 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
     neighbors
 }
 
-pub fn run_gpu_loop() {
+pub fn run_gpu_loop(img_canvas_shared: Arc<RwLock<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>) {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
         .join("cl/clove.cl");
@@ -341,6 +342,12 @@ pub fn run_gpu_loop() {
             //         dims.0, dims.1, buf).unwrap();
             //     img2
             // }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
+        }
+
+        if talk { tracer.stage("share"); }
+        {
+            let mut out = img_canvas_shared.write().unwrap();
+            *out = img_canvas.clone();
         }
 
         if talk { tracer.finish(); }
