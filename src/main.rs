@@ -5,21 +5,30 @@ extern crate time;
 extern crate ocl;
 #[macro_use] extern crate colorify;
 
+mod tracer;
+
 use std::path::Path;
 use ocl::{Context, Queue, Device, Program, Image, Kernel};
 use ocl::enums::{ImageChannelOrder, ImageChannelDataType, MemObjectType};
 use find_folder::Search;
 use rand::Rng;
 use std::collections::vec_deque::VecDeque;
+use tracer::TimeTracer;
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
 
 fn print_elapsed(title: &str, start: time::Timespec) {
     let time_elapsed = time::get_time() - start;
-    let elapsed_ms = time_elapsed.num_milliseconds();
     let separator = if title.len() > 0 { ": " } else { "" };
-    println!("    {}{}{}.{:03}", title, separator, time_elapsed.num_seconds(), elapsed_ms);
+    // let elapsed_sec = time_elapsed.num_seconds();
+    // let elapsed_ms = time_elapsed.num_milliseconds();
+    let us_str = if let Some(elapsed_us) = time_elapsed.num_microseconds() {
+        format!("{}", elapsed_us)
+    } else {
+        "OVERFLOW".to_owned()
+    };
+    println!("    {}{}{:03} us", title, separator, us_str);
 }
 
 #[allow(dead_code)]
@@ -38,7 +47,7 @@ fn min_pixel<I>(img: &I) -> (u32, u32, u16)
 }
 
 // Minimum value pixel in the img.
-// Only consider those pixels where map is hot.
+// Only consider those pixels where mask is hot.
 // Returns None if there are no viable pixels.
 fn min_pixel_with_mask<I,M>(img: &I, mask: &M) -> Option<(u32, u32, u16)>
     where I: image::GenericImage<Pixel=image::Luma<u16>>,
@@ -109,7 +118,7 @@ fn main() {
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (200, 200);
+    let dims: (u32, u32) = (512, 512);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
@@ -195,7 +204,11 @@ fn main() {
         let talk: bool = frame % 200 == 0;
         // let talk: bool = true;
 
+        let mut tracer = TimeTracer::new("frame");
+
         if talk { printlnc!(white_bold: "\nFrame: {}", frame) };
+
+        if talk { tracer.stage("create memory bindings") };
 
         let start_time = time::get_time();
 
@@ -204,7 +217,7 @@ fn main() {
             .channel_data_type(ImageChannelDataType::UnormInt8)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
             .queue(queue.clone())
             .host_data(&img_canvas)
             .build().unwrap();
@@ -214,7 +227,7 @@ fn main() {
             .channel_data_type(ImageChannelDataType::UnormInt8)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
             .queue(queue.clone())
             .host_data(&img_mask_filled)
             .build().unwrap();
@@ -224,12 +237,10 @@ fn main() {
             .channel_data_type(ImageChannelDataType::UnormInt16)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
-            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_COPY_HOST_PTR)
+            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
             .queue(queue.clone())
             .host_data(&img_score)
             .build().unwrap();
-
-        if talk { print_elapsed("created memory bindings", start_time); }
 
         let target = color_queue.pop_front();
         if target.is_none() {
@@ -255,49 +266,46 @@ fn main() {
         if talk { printlnc!(royal_blue: "Running kernel..."); }
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
 
+        if talk { tracer.stage("kernel enqueue"); }
         kernel.enq().unwrap();
-        if talk { print_elapsed("kernel enqueued", start_time); }
 
+        if talk { tracer.stage("finish queue"); }
         queue.finish().unwrap();
-        if talk { print_elapsed("queue finished", start_time); }
 
+        if talk { tracer.stage("read image"); }
         cl_out_score.read(&mut img_score).enq().unwrap();
-        if talk { print_elapsed("read finished", start_time); }
+        if talk { tracer.stage("pick"); }
 
-        let mut overdrive = 1;
-        // if frame > 200 {
-        //     overdrive = 500;
-        // }
-
-        for _ in 0..overdrive {
-            if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
-                place_pixel(x, y, target,
-                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-            } else {
-                printlnc!(royal_blue: "no viable pixels");
-                break 'outer;
-            }
+        if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
+            if talk { tracer.stage("place"); }
+            place_pixel(x, y, target,
+                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        } else {
+            printlnc!(royal_blue: "no viable pixels");
+            break 'outer;
         }
 
-        if talk { print_elapsed("placed", start_time); }
+        if talk { tracer.stage("save"); }
 
-        if frame % 200 == 0 {
+        if frame % 1000 == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
 
             // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
             // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();
 
-            {
-                let buf: Vec<u8> = img_score.clone().into_raw().iter().map(|px| {
-                    (px >> 8) as u8
-                }).collect();
-                let img2: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
-                    dims.0, dims.1, buf).unwrap();
-                img2
-            }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
+            // {
+            //     let buf: Vec<u8> = img_score.clone().into_raw().iter().map(|px| {
+            //         (px >> 8) as u8
+            //     }).collect();
+            //     let img2: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_raw(
+            //         dims.0, dims.1, buf).unwrap();
+            //     img2
+            // }.save(&Path::new(&format!("score_{:06}.png", frame))).unwrap();
 
             print_elapsed("save", start_time);
         }
+
+        if talk { tracer.finish(); }
     }
 
     printlnc!(white_bold: "saving final");

@@ -128,7 +128,7 @@ __kernel void score(
     /* const float4 src_rgba = read_imagef(source, sampler_const, pixel_id); */
 
     // Whether to use average of minimum of the neighbors as the score.
-    const bool alg_avg = true;
+    const bool alg_avg = false;
 
     float acc = 0;
     float min_neighbor_score = INFINITY;
