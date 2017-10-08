@@ -189,6 +189,44 @@ fn main() {
     printlnc!(white_bold: "saving start image");
     img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
 
+    let cl_in_canvas = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Rgba)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&img_canvas)
+        .build().unwrap();
+
+    let cl_in_mask_filled = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Luminance)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&img_mask_filled)
+        .build().unwrap();
+
+    let cl_out_score = Image::<u16>::builder()
+        .channel_order(ImageChannelOrder::Luminance)
+        .channel_data_type(ImageChannelDataType::UnormInt16)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&img_score)
+        .build().unwrap();
+
+    let mut kernel = Kernel::new("score", &program).unwrap()
+        .queue(queue.clone())
+        .gws(&dims)
+        .arg_img(&cl_in_canvas)
+        .arg_img(&cl_in_mask_filled)
+        .arg_vec_named::<ocl::prm::Float4>("goal", None)
+        .arg_img(&cl_out_score);
+
     let talk_every = 200;
     let save_every = 2000;
 
@@ -202,35 +240,8 @@ fn main() {
 
         if talk { tracer.stage("create memory bindings") };
 
-        let cl_in_canvas = Image::<u8>::builder()
-            .channel_order(ImageChannelOrder::Rgba)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_canvas)
-            .build().unwrap();
-
-        let cl_in_mask_filled = Image::<u8>::builder()
-            .channel_order(ImageChannelOrder::Luminance)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_mask_filled)
-            .build().unwrap();
-
-        let cl_out_score = Image::<u16>::builder()
-            .channel_order(ImageChannelOrder::Luminance)
-            .channel_data_type(ImageChannelDataType::UnormInt16)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_score)
-            .build().unwrap();
+        cl_in_canvas.write(&img_canvas).enq().unwrap();
+        cl_in_mask_filled.write(&img_mask_filled).enq().unwrap();
 
         let target = color_queue.pop_front();
         if target.is_none() {
@@ -245,13 +256,7 @@ fn main() {
             (target.data[3] as f32) / 256.
         );
 
-        let kernel = Kernel::new("score", &program).unwrap()
-            .queue(queue.clone())
-            .gws(&dims)
-            .arg_img(&cl_in_canvas)
-            .arg_img(&cl_in_mask_filled)
-            .arg_vec(goal)
-            .arg_img(&cl_out_score);
+        kernel.set_arg_vec_named("goal", goal).unwrap();
 
         if talk { printlnc!(royal_blue: "Running kernel..."); }
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
