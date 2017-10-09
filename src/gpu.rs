@@ -89,7 +89,10 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
     neighbors
 }
 
-pub fn run_gpu_loop(img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>) {
+pub fn run_gpu_loop(
+    img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>,
+    cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
+{
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
         .join("cl/clove.cl");
@@ -303,28 +306,43 @@ pub fn run_gpu_loop(img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image
 
         if talk { tracer.stage("place"); }
 
-        if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
-            place_pixel(x, y, target,
-                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        } else {
-            printlnc!(royal_blue: "no viable pixels");
-            break 'outer;
-        }
-
-        // let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
-        // if frame < 1000 {
-        //     choices.truncate(1);
+        // if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
+        //     place_pixel(x, y, target,
+        //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         // } else {
-        //     choices.truncate(100);
-        // }
-        // if choices.len() == 0 {
         //     printlnc!(royal_blue: "no viable pixels");
         //     break 'outer;
         // }
-        // for &(x,y,_) in choices.iter() {
-        //     place_pixel(x, y, target,
+
+        let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
+        let nplace = match frame {
+            0 ... 1000 => 1,
+            0 ... 2000 => 4,
+            0 ... 4000 => 8,
+            _ => 8,
+        };
+        choices.truncate(nplace);
+        if choices.len() == 0 {
+            printlnc!(royal_blue: "no viable pixels");
+            break 'outer;
+        }
+        for &(x,y,_) in choices.iter() {
+            place_pixel(x, y, target,
+                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        }
+
+        // if frame == 400 {
+        //     place_pixel(30, 30, target,
         //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         // }
+        if talk { tracer.stage("cursor"); }
+        {
+            let cursor = cursor_shared.lock().unwrap();
+            if let Some((x, y)) = *cursor {
+                place_pixel(x, y, target,
+                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+            }
+        }
 
         if talk { tracer.stage("save"); }
 

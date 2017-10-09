@@ -9,6 +9,7 @@ extern crate time;
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL,
     Texture, TextureSettings,
+    Transformed, MouseCursorEvent, RenderEvent,
 };
 use std::thread;
 use std::sync::{Arc,Mutex};
@@ -30,10 +31,13 @@ fn main() {
         Arc::new(Mutex::new(Some(img_blank.clone())))
     };
 
+    let cursor_shared: Arc<Mutex<Option<(u32, u32)>>> = Arc::new(Mutex::new(None));
+
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
+        let cursor_shared = Arc::clone(&cursor_shared);
         thread::spawn(move || {
-            gpu::run_gpu_loop(img_canvas_shared);
+            gpu::run_gpu_loop(img_canvas_shared, cursor_shared);
         });
     }
 
@@ -51,18 +55,28 @@ fn main() {
     ).unwrap();
 
     // window.set_lazy(true);
+    let scaleup = 2.5;
     while let Some(e) = window.next() {
-        let img_canvas: Option<_> = img_canvas_shared.lock().unwrap().take();
-        if let Some(img_canvas) = img_canvas {
-            texture = Texture::from_image(&mut window.factory,
-                                          &img_canvas,
-                                          &TextureSettings::new()
-            ).unwrap()
-        }
+        e.mouse_cursor(|x,y| {
+            *cursor_shared.lock().unwrap() = Some(
+                ((x / scaleup) as u32,
+                 (y / scaleup) as u32
+                ));
+        });
 
-        window.draw_2d(&e, |c, g| {
-            piston_window::clear([1.,1.,0.,1.], g);
-            piston_window::image(&texture, c.transform, g);
+        e.render(|_| {
+            let img_canvas: Option<_> = img_canvas_shared.lock().unwrap().take();
+            if let Some(img_canvas) = img_canvas {
+                texture = Texture::from_image(&mut window.factory,
+                                            &img_canvas,
+                                            &TextureSettings::new()
+                ).unwrap()
+            }
+
+            window.draw_2d(&e, |c, g| {
+                piston_window::clear([1.,1.,0.,1.], g);
+                piston_window::image(&texture, c.transform.scale(scaleup, scaleup), g);
+            });
         });
     }
 }
