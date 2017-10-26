@@ -47,7 +47,7 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
             bool self = (dx == 0 && dy == 0);
             bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
             /* bool select = (abs(loc.x - 10) < 5) && (abs(loc.y - 10) < 5); */
-            bool select = true;
+            /* bool select = true; */
             if (!self && in_bounds) {
                 const float4 rgba_neighbor = read_imagef(source, sampler_const, loc);
                 if (rgba_neighbor.y > .5) {
@@ -138,7 +138,7 @@ __kernel void score(
             const int2 loc = pixel_id + (int2)(dx, dy);
             bool self = (dx == 0 && dy == 0);
             bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
-            bool select = true;
+            /* bool select = true; */
             if (!self && in_bounds) {
                 const float4 mask_neighbor = read_imagef(mask, sampler_const, loc);
                 if (mask_neighbor.x > .5) {
@@ -168,4 +168,54 @@ __kernel void score(
     /* 	printf("px: %d %d: live:%d neighbors:%d\n", pixel_id.x, pixel_id.y, */
     /* 	       live, live_neighbors); */
     /* } */
+}
+
+// Pick a new color for pixels on the frontier.
+// Mask is hot for pixels that are already filled.
+__kernel void inflate(
+    read_only image2d_t in_canvas,
+    read_only image2d_t in_mask,
+    write_only image2d_t out_canvas,
+    write_only image2d_t out_mask)
+{
+    const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    const int2 dims = get_image_dim(out_canvas);
+
+    const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
+    const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
+    if (mask_self.x > .5) {
+        // This spot is filled already. Copy over and get outta here.
+        write_imagef(out_canvas, pixel_id, src_rgba);
+        write_imagef(out_mask, pixel_id, mask_self);
+        return;
+    }
+
+    int n_hot_neighbors = 0;
+    for (int dx = -1; dx <= 1;  dx++) {
+        for (int dy = -1; dy <= 1;  dy++) {
+            const int2 loc = pixel_id + (int2)(dx, dy);
+            bool self = (dx == 0 && dy == 0);
+            bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
+            /* bool select = true; */
+            if (!self && in_bounds) {
+                const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
+                if (mask_neighbor.x > .5) {
+                    n_hot_neighbors += 1;
+                    /* const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc); */
+                }
+            }
+        }
+    }
+
+    // Whether we are on the frontier
+    const bool self_frontier = n_hot_neighbors > 0;
+
+    float4 out_canvas_rgba = (float4)(0, 0, .3, 1);
+    float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+    if (self_frontier) {
+        out_canvas_rgba = (float4)(0, 1, .2, 1);
+        out_mask_rgba = (float4)(1, 1, 1, 1);
+    }
+    write_imagef(out_canvas, pixel_id, out_canvas_rgba);
+    write_imagef(out_mask, pixel_id, out_mask_rgba);
 }

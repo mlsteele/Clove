@@ -91,7 +91,7 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
 
 pub fn run_gpu_loop(
     img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>,
-    cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
+    _cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
 {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
@@ -141,6 +141,9 @@ pub fn run_gpu_loop(
 
     let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
+    // temporary destination buffer
+    let mut img_canvas_dest: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, black);
 
     // Glider:
     // img_canvas.put_pixel(4, 3, white);
@@ -152,13 +155,16 @@ pub fn run_gpu_loop(
     // Which pixels are filled.
     let mut img_mask_filled: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, MASK_BLACK);
+    // temporary destination buffer
+    let mut img_mask_filled_dest: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, MASK_BLACK);
 
     // Which pixels are on the frontier.
     let mut img_mask_frontier: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, MASK_BLACK);
 
-    let mut img_score: image::ImageBuffer<image::Luma<u16>, Vec<u16>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, image::Luma{data: [0u16]});
+    // let mut img_score: image::ImageBuffer<image::Luma<u16>, Vec<u16>> = image::ImageBuffer::from_pixel(
+    //     dims.0, dims.1, image::Luma{data: [0u16]});
 
     fn place_pixel<I,M>(x: u32, y: u32, color: image::Rgba<u8>,
                    canvas: &mut I, mask_filled: &mut M, mask_frontier: &mut M)
@@ -219,26 +225,38 @@ pub fn run_gpu_loop(
         .host_data(&img_mask_filled)
         .build().unwrap();
 
-    let cl_out_score = Image::<u16>::builder()
-        .channel_order(ImageChannelOrder::Luminance)
-        .channel_data_type(ImageChannelDataType::UnormInt16)
+    let cl_out_canvas = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Rgba)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
         .image_type(MemObjectType::Image2d)
         .dims(&dims)
         .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
         .queue(queue.clone())
-        .host_data(&img_score)
+        .host_data(&img_canvas_dest)
         .build().unwrap();
 
-    let mut kernel = Kernel::new("score", &program).unwrap()
+    let cl_out_mask_filled = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Luminance)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&img_mask_filled_dest)
+        .build().unwrap();
+
+    let mut kernel = Kernel::new("inflate", &program).unwrap()
         .queue(queue.clone())
         .gws(&dims)
         .arg_img_named("canvas", Some(&cl_in_canvas))
         .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
-        .arg_vec_named::<ocl::prm::Float4>("goal", None)
-        .arg_img(&cl_out_score);
+        // .arg_vec_named::<ocl::prm::Float4>("goal", None)
+        .arg_img(&cl_out_canvas)
+        .arg_img(&cl_out_mask_filled);
 
     let talk_every = 200;
-    let save_every = 1000;
+    // let save_every = 1000;
+    let save_every = 1;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -276,20 +294,20 @@ pub fn run_gpu_loop(
         kernel.set_arg_img_named("canvas", Some(&cl_in_canvas)).unwrap();
         kernel.set_arg_img_named("mask_filled", Some(&cl_in_mask_filled)).unwrap();
 
-        let target = color_queue.pop_front();
-        if target.is_none() {
-            printlnc!(royal_blue: "color queue drained");
-            break;
-        }
-        let target = target.unwrap();
-        let goal = ocl::prm::Float4::new(
-            (target.data[0] as f32) / 256.,
-            (target.data[1] as f32) / 256.,
-            (target.data[2] as f32) / 256.,
-            (target.data[3] as f32) / 256.
-        );
+        // let target = color_queue.pop_front();
+        // if target.is_none() {
+        //     printlnc!(royal_blue: "color queue drained");
+        //     break;
+        // }
+        // let target = target.unwrap();
+        // let goal = ocl::prm::Float4::new(
+        //     (target.data[0] as f32) / 256.,
+        //     (target.data[1] as f32) / 256.,
+        //     (target.data[2] as f32) / 256.,
+        //     (target.data[3] as f32) / 256.
+        // );
 
-        kernel.set_arg_vec_named("goal", goal).unwrap();
+        // kernel.set_arg_vec_named("goal", goal).unwrap();
 
         if talk { printlnc!(royal_blue: "Running kernel..."); }
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
@@ -301,7 +319,8 @@ pub fn run_gpu_loop(
         queue.finish().unwrap();
 
         if talk { tracer.stage("read image"); }
-        cl_out_score.read(&mut img_score).enq().unwrap();
+        cl_out_canvas.read(&mut img_canvas).enq().unwrap();
+        cl_out_mask_filled.read(&mut img_mask_filled).enq().unwrap();
         if talk { tracer.stage("pick"); }
 
         if talk { tracer.stage("place"); }
@@ -314,40 +333,42 @@ pub fn run_gpu_loop(
         //     break 'outer;
         // }
 
-        let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
-        let nplace = match frame {
-            0 ... 1000 => 1,
-            0 ... 2000 => 4,
-            0 ... 4000 => 8,
-            _ => 8,
-        };
-        choices.truncate(nplace);
-        if choices.len() == 0 {
-            printlnc!(royal_blue: "no viable pixels");
-            break 'outer;
-        }
-        for &(x,y,_) in choices.iter() {
-            place_pixel(x, y, target,
-                        &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        }
+        // let mut choices = sort_pixels_with_mask(&img_score, &img_mask_frontier);
+        // let nplace = match frame {
+        //     0 ... 1000 => 1,
+        //     0 ... 2000 => 4,
+        //     0 ... 4000 => 8,
+        //     _ => 8,
+        // };
+        // choices.truncate(nplace);
+        // if choices.len() == 0 {
+        //     printlnc!(royal_blue: "no viable pixels");
+        //     break 'outer;
+        // }
+        // for &(x,y,_) in choices.iter() {
+        //     place_pixel(x, y, target,
+        //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        // }
 
         // if frame == 400 {
         //     place_pixel(30, 30, target,
         //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         // }
-        if talk { tracer.stage("cursor"); }
-        {
-            let cursor = cursor_shared.lock().unwrap();
-            if let Some((x, y)) = *cursor {
-                place_pixel(x, y, target,
-                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-            }
-        }
+
+        // if talk { tracer.stage("cursor"); }
+        // {
+        //     let cursor = cursor_shared.lock().unwrap();
+        //     if let Some((x, y)) = *cursor {
+        //         place_pixel(x, y, target,
+        //                     &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        //     }
+        // }
 
         if talk { tracer.stage("save"); }
 
         if frame % save_every == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
+            img_mask_filled.save(&Path::new(&format!("mask_{:06}.png", frame))).unwrap();
 
             // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
             // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();
