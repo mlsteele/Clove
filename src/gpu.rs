@@ -368,7 +368,7 @@ pub fn run_gpu_loop(
 
         if frame % save_every == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
-            img_mask_filled.save(&Path::new(&format!("mask_{:06}.png", frame))).unwrap();
+            // img_mask_filled.save(&Path::new(&format!("mask_{:06}.png", frame))).unwrap();
 
             // img_mask_frontier.save(&Path::new(&format!("mask_frontier_{:06}.png", frame))).unwrap();
             // img_mask_filled.save(&Path::new(&format!("mask_filled_{:06}.png", frame))).unwrap();

@@ -39,11 +39,11 @@ fn main() {
         let gpu_thread = thread::spawn(move || {
             gpu::run_gpu_loop(img_canvas_shared, cursor_shared);
         });
-        gpu_thread.join().unwrap();
+        // gpu_thread.join().unwrap();
     }
 
-    // Skip opengl
-    return;
+    // // Skip opengl
+    // return;
 
     let opengl = OpenGL::V3_2;
     let mut window: PistonWindow =

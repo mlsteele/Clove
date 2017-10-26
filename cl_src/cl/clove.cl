@@ -170,6 +170,16 @@ __kernel void score(
     /* } */
 }
 
+// Find a new color that is different from `rgba1` by `d`.
+// d is [0, 1] where 0 is most similar.
+// TODO this is so wrong
+float4 color_at_distance(float4 rgba1, float d) {
+    const float r = rgba1.x + d;
+    const float g = rgba1.y + d;
+    const float b = rgba1.z + d;
+    return (float4)(r, g, b, 1);
+}
+
 // Pick a new color for pixels on the frontier.
 // Mask is hot for pixels that are already filled.
 __kernel void inflate(
@@ -191,6 +201,8 @@ __kernel void inflate(
     }
 
     int n_hot_neighbors = 0;
+    // TODO neighbor should be selected randomly
+    float4 selected_neighbor_rgba = (float4)(1,1,0,1);
     for (int dx = -1; dx <= 1;  dx++) {
         for (int dy = -1; dy <= 1;  dy++) {
             const int2 loc = pixel_id + (int2)(dx, dy);
@@ -201,7 +213,8 @@ __kernel void inflate(
                 const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
                 if (mask_neighbor.x > .5) {
                     n_hot_neighbors += 1;
-                    /* const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc); */
+                    const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc);
+		    selected_neighbor_rgba = rgba_neighbor;
                 }
             }
         }
@@ -213,7 +226,11 @@ __kernel void inflate(
     float4 out_canvas_rgba = (float4)(0, 0, .3, 1);
     float4 out_mask_rgba = (float4)(0, 0, 0, 1);
     if (self_frontier) {
-        out_canvas_rgba = (float4)(0, 1, .2, 1);
+        /* out_canvas_rgba = (float4)(0, 1, .2, 1); */
+	/* out_canvas_rgba = selected_neighbor_rgba; */
+	// TODO distance should be selected randomly (along a curve representative of original)
+	const float distance = 0.02;
+	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance);
         out_mask_rgba = (float4)(1, 1, 1, 1);
     }
     write_imagef(out_canvas, pixel_id, out_canvas_rgba);
