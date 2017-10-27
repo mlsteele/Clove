@@ -170,14 +170,39 @@ __kernel void score(
     /* } */
 }
 
+// this one is really bad
+float rand_xorshift(uint2 randoms, uint globalID) {
+    // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
+    uint seed = randoms.x + globalID;
+    uint t = seed ^ (seed << 11);  
+    uint result = randoms.y ^ (randoms.y >> 19) ^ (t ^ (t >> 8));
+    return (float)result / 4294967295.0;
+}
+
+// 1 <= *seed < m
+float rand_pm(uint *seed) {
+    // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
+    uint const a = 16807; // 7**5 
+    *seed = ((long)(*seed) * a);
+    return (*seed) / 4294967295.0;
+}
+
 // Find a new color that is different from `rgba1` by `d`.
 // d is [0, 1] where 0 is most similar.
 // TODO this is so wrong
-float4 color_at_distance(float4 rgba1, float d) {
-    const float r = rgba1.x + d;
-    const float g = rgba1.y + d;
-    const float b = rgba1.z + d;
-    return (float4)(r, g, b, 1);
+float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
+    float3 delta = (float3)(rand_pm(rand_seed), rand_pm(rand_seed), rand_pm(rand_seed));
+    delta -= (float3)(.5, .5, .5);
+    delta = normalize(delta) * d;
+    /* const float r = rgba1.x + d;  */
+    /* const float g = rgba1.y + d;  */
+    /* const float b = rgba1.z + d;  */
+    const float r = rgba1.x + delta.x;
+    const float g = rgba1.y + delta.y;
+    const float b = rgba1.z + delta.z;
+    /* return (float4)(r, g, b, 1); */
+    float4 result = (float4)(r, g, b, rgba1.z);
+    return clamp(result, 0.0f, 1.0f);
 }
 
 // Pick a new color for pixels on the frontier.
@@ -185,10 +210,12 @@ float4 color_at_distance(float4 rgba1, float d) {
 __kernel void inflate(
     read_only image2d_t in_canvas,
     read_only image2d_t in_mask,
+    global uint *rand,
     write_only image2d_t out_canvas,
     write_only image2d_t out_mask)
 {
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    const uint rand_id = get_global_id(0) + get_global_id(1) * get_global_size(0);
     const int2 dims = get_image_dim(out_canvas);
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
@@ -229,8 +256,11 @@ __kernel void inflate(
         /* out_canvas_rgba = (float4)(0, 1, .2, 1); */
 	/* out_canvas_rgba = selected_neighbor_rgba; */
 	// TODO distance should be selected randomly (along a curve representative of original)
-	const float distance = 0.02;
-	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance);
+        uint rand_seed = rand[rand_id];
+        /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
+	/* const float distance = rand_pm(&rand_seed); */
+	const float distance = .3;
+	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
         out_mask_rgba = (float4)(1, 1, 1, 1);
     }
     write_imagef(out_canvas, pixel_id, out_canvas_rgba);

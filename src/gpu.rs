@@ -127,7 +127,7 @@ pub fn run_gpu_loop(
 
     printlnc!(white_bold: "initializing color queue");
     #[allow(unused_variables)]
-    let mut color_queue: VecDeque<image::Rgba<u8>> = {
+    let color_queue: VecDeque<image::Rgba<u8>> = {
         let ncolors = (dims.0 * dims.1) as usize;
         let mut q = VecDeque::with_capacity(ncolors);
         for _ in 0..ncolors {
@@ -142,7 +142,7 @@ pub fn run_gpu_loop(
     let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
     // temporary destination buffer
-    let mut img_canvas_dest: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+    let img_canvas_dest: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
 
     // Glider:
@@ -156,7 +156,7 @@ pub fn run_gpu_loop(
     let mut img_mask_filled: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, MASK_BLACK);
     // temporary destination buffer
-    let mut img_mask_filled_dest: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
+    let img_mask_filled_dest: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, MASK_BLACK);
 
     // Which pixels are on the frontier.
@@ -250,13 +250,13 @@ pub fn run_gpu_loop(
         .gws(&dims)
         .arg_img_named("canvas", Some(&cl_in_canvas))
         .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
+        .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
         // .arg_vec_named::<ocl::prm::Float4>("goal", None)
         .arg_img(&cl_out_canvas)
         .arg_img(&cl_out_mask_filled);
 
     let talk_every = 200;
-    // let save_every = 1000;
-    let save_every = 1;
+    let save_every = 1000;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -306,6 +306,20 @@ pub fn run_gpu_loop(
         //     (target.data[2] as f32) / 256.,
         //     (target.data[3] as f32) / 256.
         // );
+
+        let host_rands: Vec<u32> = rand::thread_rng().gen_iter().take((dims.0 * dims.1) as usize).collect();
+        let in_rands = ocl::Buffer::builder()
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+            .dims(host_rands.len())
+            .queue(queue.clone())
+            .host_data(&host_rands)
+            .build().unwrap();
+        // let rand = ocl::prm::Uint2::new(
+        //     rand::thread_rng().next_u32(),
+        //     rand::thread_rng().next_u32(),
+        // );
+
+        kernel.set_arg_buf_named("rand", Some(&in_rands)).unwrap();
 
         // kernel.set_arg_vec_named("goal", goal).unwrap();
 

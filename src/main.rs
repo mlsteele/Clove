@@ -36,7 +36,7 @@ fn main() {
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
         let cursor_shared = Arc::clone(&cursor_shared);
-        let gpu_thread = thread::spawn(move || {
+        let _gpu_thread = thread::spawn(move || {
             gpu::run_gpu_loop(img_canvas_shared, cursor_shared);
         });
         // gpu_thread.join().unwrap();
