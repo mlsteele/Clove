@@ -284,7 +284,8 @@ pub fn run_gpu_loop(
 
     let talk_every = 200;
     let save_every = 1000;
-    let die_at = 550;
+    // let die_at = 550;
+    let die_at = 10000;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;

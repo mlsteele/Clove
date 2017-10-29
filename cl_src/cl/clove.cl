@@ -180,7 +180,7 @@ float rand_xorshift(uint2 randoms, uint globalID) {
 }
 
 // 1 <= *seed < m
-float rand_pm(uint *seed) {
+uint rand_pm_uint(uint *seed) {
     /* return (*seed) / 2147483647.0f; // 2**31-1 */
 
     // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
@@ -188,7 +188,12 @@ float rand_pm(uint *seed) {
     long const m = 2147483647; // 2**31-1
     *seed = ((long)(*seed) * a) % m;
     /* return (*seed) / 4294967295.0; */
-    return (*seed) / 2147483647.0f; // 2**31-1
+    return *seed;
+}
+
+// 1 <= *seed < m
+float rand_pm(uint *seed) {
+    return rand_pm_uint(seed) / 2147483647.0f; // 2**31-1
 }
 
 // Find a new color that is different from `rgba1` by `d`.
@@ -219,6 +224,18 @@ float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
     return clamp(result, 0.0f, 1.0f);
 }
 
+__constant int2 neighbor_deltas[8] = {
+    (int2)(-1, -1),
+    (int2)(-1, 0),
+    (int2)(-1, 1),
+    (int2)(0, -1),
+    // skip 0, 0
+    (int2)(0, 1),
+    (int2)(1, -1),
+    (int2)(1, 0),
+    (int2)(1, 1),
+};
+
 // Pick a new color for pixels on the frontier.
 // Mask is hot for pixels that are already filled.
 __kernel void inflate(
@@ -248,12 +265,22 @@ __kernel void inflate(
     /*     return;  */
     /* }  */
 
+    // Clear some pixels sometimes
+    /* if (rand_pm(&rand_seed) < 0.1) { */
+    /*     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id); */
+    /*     float4 out_mask_rgba = (float4)(0, 0, 0, 1); */
+    /*     write_imagef(out_canvas, pixel_id, src_rgba); */
+    /*     write_imagef(out_mask, pixel_id, out_mask_rgba); */
+    /*     return; */
+    /* } */
+
+    // Do the fizzy thing where pixels wiggle around.
     if (rand_pm(&rand_seed) < 0.05) {
         /* float2 virtual_xy = (float2)(pixel_idf.x / 50, pixel_idf.y / 50); */
         /* const int2 center_xy = (int2)(dims.x / 2, dims.y / 2); */
         /* float factor = distance(convert_float2(pixel_id), convert_float2(center_xy)) / distance((float2)(0, 0), convert_float2(dims)); */
-        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 5,
-                                   (rand_pm(&rand_seed) - 0.5) * 5);
+        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3,
+                                   (rand_pm(&rand_seed) - 0.5) * 2);
         const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset);
         const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id + offset);
         write_imagef(out_canvas, pixel_id, src_rgba);
@@ -264,7 +291,7 @@ __kernel void inflate(
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
     // TODO second term (rand off for circle) is wasteful
-    if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.8) {
+    if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.7) {
         // This spot is filled already. Copy over and get outta here.
         write_imagef(out_canvas, pixel_id, src_rgba);
         write_imagef(out_mask, pixel_id, mask_self);
@@ -274,19 +301,19 @@ __kernel void inflate(
     int n_hot_neighbors = 0;
     // TODO neighbor should be selected randomly
     float4 selected_neighbor_rgba = (float4)(1,0,1,1);
-    for (int dx = -1; dx <= 1;  dx++) {
-        for (int dy = -1; dy <= 1;  dy++) {
-            const int2 loc = pixel_id + (int2)(dx, dy);
-            bool self = (dx == 0 && dy == 0);
-            bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
-            /* bool select = true; */
-            if (!self && in_bounds) {
-                const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
-                if (mask_neighbor.x > .5) {
-                    n_hot_neighbors += 1;
-                    const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc);
-		    selected_neighbor_rgba = rgba_neighbor;
-                }
+    int neighbor_index_offset = rand_pm_uint(&rand_seed) % 8;
+    for (int i = 0; i < 8; i++) {
+        int2 dxy = neighbor_deltas[(i + neighbor_index_offset) % 8];
+
+        const int2 loc = pixel_id + dxy;
+        bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
+        /* bool select = true; */
+        if (in_bounds) {
+            const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
+            if (mask_neighbor.x > .5) {
+                n_hot_neighbors += 1;
+                const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc);
+                selected_neighbor_rgba = rgba_neighbor;
             }
         }
     }

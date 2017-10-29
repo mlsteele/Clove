@@ -21,7 +21,7 @@ use std::time::Duration;
 use common::Turn;
 
 fn main() {
-    let dims: (u32, u32) = (512, 512);
+    let dims: (u32, u32) = (1000, 500);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let bg_color = [0.3, 0.0, 0.3, 1.];
