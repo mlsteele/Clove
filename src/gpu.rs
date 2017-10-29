@@ -90,8 +90,9 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
 }
 
 pub fn run_gpu_loop(
+    dims: (u32, u32),
     img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>,
-    _cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
+    cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
 {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
@@ -117,13 +118,14 @@ pub fn run_gpu_loop(
         .build(&context)
         .unwrap();
 
-    let dims: (u32, u32) = (512, 512);
     let center = (dims.0 / 2, dims.1 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     #[allow(unused_variables)]
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
     let red: image::Rgba<u8> = image::Rgba{data: [255u8, 0u8, 0u8, 255u8]};
+    #[allow(unused_variables)]
+    let green: image::Rgba<u8> = image::Rgba{data: [0u8, 255u8, 0u8, 255u8]};
 
     printlnc!(white_bold: "initializing color queue");
     #[allow(unused_variables)]
@@ -142,8 +144,7 @@ pub fn run_gpu_loop(
     let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
     // temporary destination buffer
-    let img_canvas_dest: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, black);
+    let img_canvas_dest = img_canvas.clone();
 
     // Glider:
     // img_canvas.put_pixel(4, 3, white);
@@ -156,8 +157,7 @@ pub fn run_gpu_loop(
     let mut img_mask_filled: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, MASK_BLACK);
     // temporary destination buffer
-    let img_mask_filled_dest: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, MASK_BLACK);
+    let img_mask_filled_dest = img_mask_filled.clone();
 
     // Which pixels are on the frontier.
     let mut img_mask_frontier: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
@@ -185,7 +185,7 @@ pub fn run_gpu_loop(
         }
     };
 
-    place_pixel(center.0, center.1, red,
+    place_pixel(center.0, center.1, green,
                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
 
     // Initialize the canvas
@@ -257,6 +257,7 @@ pub fn run_gpu_loop(
 
     let talk_every = 200;
     let save_every = 1000;
+    let die_at = 400;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -307,7 +308,11 @@ pub fn run_gpu_loop(
         //     (target.data[3] as f32) / 256.
         // );
 
-        let host_rands: Vec<u32> = rand::thread_rng().gen_iter().take((dims.0 * dims.1) as usize).collect();
+        const RAND_PM_M: u32 = 2147483647; // 2**31-1
+        let host_rands: Vec<u32> = rand::thread_rng().gen_iter::<u32>()
+            .map(|x: u32| x % RAND_PM_M)
+            .take((dims.0 * dims.1) as usize)
+            .collect();
         let in_rands = ocl::Buffer::builder()
             .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
             .dims(host_rands.len())
@@ -369,14 +374,14 @@ pub fn run_gpu_loop(
         //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
         // }
 
-        // if talk { tracer.stage("cursor"); }
-        // {
-        //     let cursor = cursor_shared.lock().unwrap();
-        //     if let Some((x, y)) = *cursor {
-        //         place_pixel(x, y, target,
-        //                     &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        //     }
-        // }
+        if talk { tracer.stage("cursor"); }
+        {
+            let cursor = cursor_shared.lock().unwrap();
+            if let Some((x, y)) = *cursor {
+                place_pixel(x, y, red,
+                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+            }
+        }
 
         if talk { tracer.stage("save"); }
 
@@ -406,6 +411,10 @@ pub fn run_gpu_loop(
         }
 
         if talk { tracer.finish(); }
+
+        if frame > die_at {
+            return;
+        }
     }
 
     printlnc!(white_bold: "saving final");

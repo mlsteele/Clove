@@ -181,10 +181,13 @@ float rand_xorshift(uint2 randoms, uint globalID) {
 
 // 1 <= *seed < m
 float rand_pm(uint *seed) {
+    return (*seed) / 2147483647.0f; // 2**31-1
     // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
-    uint const a = 16807; // 7**5 
-    *seed = ((long)(*seed) * a);
-    return (*seed) / 4294967295.0;
+    long const a = 16807; // 7**5
+    long const m = 2147483647; // 2**31-1
+    *seed = ((long)(*seed) * a) % m;
+    /* return (*seed) / 4294967295.0; */
+    return (*seed) / 2147483647; // 2**31-1
 }
 
 // Find a new color that is different from `rgba1` by `d`.
@@ -192,16 +195,26 @@ float rand_pm(uint *seed) {
 // TODO this is so wrong
 float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
     float3 delta = (float3)(rand_pm(rand_seed), rand_pm(rand_seed), rand_pm(rand_seed));
+    /* delta = (float3)(.5,.5,.5); */
+    /* printf("%f %f %f\n", delta.x, delta.y, delta.z); */
+    /* float rx = rand_pm(rand_seed); */
+    /* float3 delta = (float3)(rx, rx, rx); */
+    /* return (float4)(delta.x, delta.x, delta.x, 1); */
+
     delta -= (float3)(.5, .5, .5);
+    delta -= (float3)(.1, .1, .1);
+    delta -= (float3)(.1, .1, .1);
+    delta -= (float3)(.1, .1, .1);
+    delta -= (float3)(.1, .1, .1);
+    delta = (float3)(-10, -10, 2);
     delta = normalize(delta) * d;
-    /* const float r = rgba1.x + d;  */
-    /* const float g = rgba1.y + d;  */
-    /* const float b = rgba1.z + d;  */
-    const float r = rgba1.x + delta.x;
-    const float g = rgba1.y + delta.y;
-    const float b = rgba1.z + delta.z;
+    const float r = rgba1.x + delta.x;   
+    const float g = rgba1.y + delta.y; 
+    const float b = rgba1.z + delta.z; 
     /* return (float4)(r, g, b, 1); */
-    float4 result = (float4)(r, g, b, rgba1.z);
+    float4 result = (float4)(r, g, b, rgba1.w);
+    /* printf("%f\n", rgba1.z); */
+    /* result = (float4)(0,0,0,1); */
     return clamp(result, 0.0f, 1.0f);
 }
 
@@ -216,11 +229,27 @@ __kernel void inflate(
 {
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
     const uint rand_id = get_global_id(0) + get_global_id(1) * get_global_size(0);
+    uint rand_seed = rand[rand_id];
     const int2 dims = get_image_dim(out_canvas);
+
+    // test of randomness
+    /* { */
+    /*     float rx1 = rand_pm(&rand_seed); */
+    /*     float rx2 = rand_pm(&rand_seed); */
+    /*     /\* if (pixel_id == (int2)(100, 100)) { *\/ */
+    /*     if (pixel_id.x == 100 && pixel_id.y == 100) { */
+    /*         /\* printf("%v, %v", rx1, rx2): *\/ */
+    /*     } */
+    /*     float rx = ((rx1 - rx2) + 1) / 2; */
+    /*     float4 out_canvas_rgba = (float4)(rx, rx, rx, 1); */
+    /*     write_imagef(out_canvas, pixel_id, out_canvas_rgba); */
+    /*     return; */
+    /* } */
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
-    if (mask_self.x > .5) {
+    // TODO second term is wasteful
+    if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.8) {
         // This spot is filled already. Copy over and get outta here.
         write_imagef(out_canvas, pixel_id, src_rgba);
         write_imagef(out_mask, pixel_id, mask_self);
@@ -229,7 +258,7 @@ __kernel void inflate(
 
     int n_hot_neighbors = 0;
     // TODO neighbor should be selected randomly
-    float4 selected_neighbor_rgba = (float4)(1,1,0,1);
+    float4 selected_neighbor_rgba = (float4)(1,0,1,1);
     for (int dx = -1; dx <= 1;  dx++) {
         for (int dy = -1; dy <= 1;  dy++) {
             const int2 loc = pixel_id + (int2)(dx, dy);
@@ -256,11 +285,18 @@ __kernel void inflate(
         /* out_canvas_rgba = (float4)(0, 1, .2, 1); */
 	/* out_canvas_rgba = selected_neighbor_rgba; */
 	// TODO distance should be selected randomly (along a curve representative of original)
-        uint rand_seed = rand[rand_id];
-        /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
 	/* const float distance = rand_pm(&rand_seed); */
-	const float distance = .3;
-	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
+        /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
+
+	const float distance = .025; 
+	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); 
+
+	/* const float rx = rand_pm(&rand_seed); */
+	/* out_canvas_rgba = (float4)(rx, rx, rx, 1); */
+
+        /* const float xjdf = rand_pm(&rand_seed); */
+        /* out_canvas_rgba = (float4)(xjdf, xjdf, xjdf, 1.0); */
+        /* out_canvas_rgba = (float4)(rand_pm(&rand_seed), rand_pm(&rand_seed), rand_pm(&rand_seed), 1); */
         out_mask_rgba = (float4)(1, 1, 1, 1);
     }
     write_imagef(out_canvas, pixel_id, out_canvas_rgba);

@@ -13,6 +13,7 @@ use piston_window::{
 };
 use std::thread;
 use std::sync::{Arc,Mutex};
+use std::time::Duration;
 
 mod gpu;
 mod tracer;
@@ -21,6 +22,7 @@ fn main() {
     let dims: (u32, u32) = (512, 512);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
+    let bg_color = [0.3, 0.0, 0.3, 1.];
     let img_blank: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
         dims.0, dims.1, black);
 
@@ -36,10 +38,17 @@ fn main() {
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
         let cursor_shared = Arc::clone(&cursor_shared);
-        let _gpu_thread = thread::spawn(move || {
-            gpu::run_gpu_loop(img_canvas_shared, cursor_shared);
+        thread::spawn(move || {
+            loop {
+                let img_canvas_shared = Arc::clone(&img_canvas_shared);
+                let cursor_shared = Arc::clone(&cursor_shared);
+                let gpu_thread = thread::spawn(move || {
+                    gpu::run_gpu_loop(dims, img_canvas_shared, cursor_shared);
+                });
+                let _ = gpu_thread.join();
+                thread::sleep(Duration::from_millis(150));
+            }
         });
-        // gpu_thread.join().unwrap();
     }
 
     // // Skip opengl
@@ -59,7 +68,7 @@ fn main() {
     ).unwrap();
 
     // window.set_lazy(true);
-    let scaleup = 2.5;
+    let scaleup = 1.5;
     while let Some(e) = window.next() {
         e.mouse_cursor(|x,y| {
             *cursor_shared.lock().unwrap() = Some(
@@ -78,7 +87,7 @@ fn main() {
             }
 
             window.draw_2d(&e, |c, g| {
-                piston_window::clear([1.,1.,0.,1.], g);
+                piston_window::clear(bg_color, g);
                 piston_window::image(&texture, c.transform.scale(scaleup, scaleup), g);
             });
         });
