@@ -9,7 +9,7 @@ use rand::Rng;
 use std::collections::vec_deque::VecDeque;
 use tracer::TimeTracer;
 use std::sync::{Arc,Mutex};
-use common::Turn;
+use common::{Turn, Cursor};
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
@@ -106,8 +106,8 @@ pub fn run_gpu_loop(
     dims: (u32, u32),
     img_canvas_shared: Arc<Mutex<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>,
     turn_shared: Arc<Mutex<Turn>>,
-    cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
-{
+    cursor_shared: Arc<Mutex<Cursor>>,
+) {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
         .join("cl/clove.cl");
@@ -134,6 +134,7 @@ pub fn run_gpu_loop(
 
     let center = (dims.0 / 2, dims.1 / 2);
 
+    #[allow(unused_variables)]
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     #[allow(unused_variables)]
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
@@ -278,6 +279,8 @@ pub fn run_gpu_loop(
         .arg_img_named("canvas", Some(&cl_in_canvas))
         .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
         .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
+        .arg_vec_named::<ocl::prm::Uint>("cursor_enabled", None)
+        .arg_vec_named::<ocl::prm::Uint2>("cursor_xy", None)
         // .arg_vec_named::<ocl::prm::Float4>("goal", None)
         .arg_img(&cl_out_canvas)
         .arg_img(&cl_out_mask_filled);
@@ -355,6 +358,12 @@ pub fn run_gpu_loop(
         kernel.set_arg_buf_named("rand", Some(&in_rands)).unwrap();
 
         // kernel.set_arg_vec_named("goal", goal).unwrap();
+        {
+            let cursor = cursor_shared.lock().unwrap();
+            let enabled = if cursor.enabled { 1 } else { 0 };
+            kernel.set_arg_vec_named("cursor_enabled", enabled).unwrap();
+            kernel.set_arg_vec_named("cursor_xy", ocl::prm::Uint2::new(cursor.x, cursor.y)).unwrap();
+        }
 
         if talk { printlnc!(royal_blue: "Running kernel..."); }
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
@@ -403,15 +412,19 @@ pub fn run_gpu_loop(
         // }
 
         if talk { tracer.stage("cursor"); }
-        {
-            let cursor = cursor_shared.lock().unwrap();
-            if let Some((x, y)) = *cursor {
-                if in_bounds(img_canvas.width(), img_canvas.height(), x, y) {
-                    place_pixel(x, y, black,
-                                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-                }
-            }
-        }
+        // {
+        //     let cursor = cursor_shared.lock().unwrap();
+        //     let (x, y) = (cursor.x, cursor.y);
+        //     if cursor.enabled && in_bounds(img_canvas.width(), img_canvas.height(), x, y) {
+        //         let color = if cursor.pressed {
+        //             white
+        //         } else {
+        //             black
+        //         };
+        //         place_pixel(x, y, color,
+        //                     &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        //     }
+        // }
 
         if talk { tracer.stage("save"); }
 

@@ -18,7 +18,7 @@ use piston_window::{
 use std::thread;
 use std::sync::{Arc,Mutex};
 use std::time::Duration;
-use common::Turn;
+use common::{Turn, Cursor};
 
 fn main() {
     let dims: (u32, u32) = (1000, 500);
@@ -35,7 +35,7 @@ fn main() {
     };
     let turn_shared = Arc::new(Mutex::new(Turn::WantDisplay));
 
-    let cursor_shared: Arc<Mutex<Option<(u32, u32)>>> = Arc::new(Mutex::new(None));
+    let cursor_shared = Arc::new(Mutex::new(Default::default()));
 
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
@@ -75,10 +75,12 @@ fn main() {
     let scaleup = 1.5;
     while let Some(e) = window.next() {
         e.mouse_cursor(|x,y| {
-            *cursor_shared.lock().unwrap() = Some(
-                ((x / scaleup) as u32,
-                 (y / scaleup) as u32
-                ));
+            *cursor_shared.lock().unwrap() = Cursor{
+                enabled: true,
+                x: (x / scaleup) as u32,
+                y: (y / scaleup) as u32,
+                pressed: false,
+            };
         });
 
         e.render(|_| {

@@ -242,6 +242,8 @@ __kernel void inflate(
     read_only image2d_t in_canvas,
     read_only image2d_t in_mask,
     global uint *rand,
+    read_only uint cursor_enabled,
+    read_only uint2 cursor_xy,
     write_only image2d_t out_canvas,
     write_only image2d_t out_mask)
 {
@@ -273,6 +275,18 @@ __kernel void inflate(
     /*     write_imagef(out_mask, pixel_id, out_mask_rgba); */
     /*     return; */
     /* } */
+
+    if (cursor_enabled > 0) {
+        const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy));
+        if (distance_to_cursor < 50) {
+            const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
+            const float4 out_canvas_rgba = (float4)(0, 0, 0, 1);
+            const float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+            /* write_imagef(out_canvas, pixel_id, out_canvas_rgba); */
+            write_imagef(out_mask, pixel_id, out_mask_rgba);
+            return;
+        }
+    }
 
     // Do the fizzy thing where pixels wiggle around.
     if (rand_pm(&rand_seed) < 0.05) {
