@@ -6,6 +6,10 @@ extern crate piston_window;
 extern crate rand;
 extern crate time;
 
+mod gpu;
+mod tracer;
+mod common;
+
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL,
     Texture, TextureSettings,
@@ -14,9 +18,7 @@ use piston_window::{
 use std::thread;
 use std::sync::{Arc,Mutex};
 use std::time::Duration;
-
-mod gpu;
-mod tracer;
+use common::Turn;
 
 fn main() {
     let dims: (u32, u32) = (512, 512);
@@ -27,23 +29,25 @@ fn main() {
         dims.0, dims.1, black);
 
     // This shared canvas is written to by the GPU thread
-    // whenver it is None. And is read by the gui whenever
-    // it is Some.
-    let img_canvas_shared: Arc<Mutex<Option<_>>> = {
-        Arc::new(Mutex::new(Some(img_blank.clone())))
+    // and read by the gui.
+    let img_canvas_shared: Arc<Mutex<_>> = {
+        Arc::new(Mutex::new(img_blank.clone()))
     };
+    let turn_shared = Arc::new(Mutex::new(Turn::WantDisplay));
 
     let cursor_shared: Arc<Mutex<Option<(u32, u32)>>> = Arc::new(Mutex::new(None));
 
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
         let cursor_shared = Arc::clone(&cursor_shared);
+        let turn_shared = Arc::clone(&turn_shared);
         thread::spawn(move || {
             loop {
                 let img_canvas_shared = Arc::clone(&img_canvas_shared);
                 let cursor_shared = Arc::clone(&cursor_shared);
+                let turn_shared = Arc::clone(&turn_shared);
                 let gpu_thread = thread::spawn(move || {
-                    gpu::run_gpu_loop(dims, img_canvas_shared, cursor_shared);
+                    gpu::run_gpu_loop(dims, img_canvas_shared, turn_shared, cursor_shared);
                 });
                 let _ = gpu_thread.join();
                 thread::sleep(Duration::from_millis(150));
@@ -78,12 +82,16 @@ fn main() {
         });
 
         e.render(|_| {
-            let img_canvas: Option<_> = img_canvas_shared.lock().unwrap().take();
-            if let Some(img_canvas) = img_canvas {
-                texture = Texture::from_image(&mut window.factory,
-                                            &img_canvas,
-                                            &TextureSettings::new()
-                ).unwrap()
+            let turn = {*turn_shared.lock().unwrap()};
+            if turn == Turn::WantDisplay {
+                {
+                    let img_canvas = img_canvas_shared.lock().unwrap();
+                    texture = Texture::from_image(&mut window.factory,
+                                                &img_canvas,
+                                                &TextureSettings::new()
+                    ).unwrap()
+                }
+                *turn_shared.lock().unwrap() = Turn::WantData;
             }
 
             window.draw_2d(&e, |c, g| {

@@ -9,6 +9,7 @@ use rand::Rng;
 use std::collections::vec_deque::VecDeque;
 use tracer::TimeTracer;
 use std::sync::{Arc,Mutex};
+use common::Turn;
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
@@ -103,7 +104,8 @@ fn in_bounds<T>(width: T, height: T, x: T, y: T) -> bool
 
 pub fn run_gpu_loop(
     dims: (u32, u32),
-    img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>,
+    img_canvas_shared: Arc<Mutex<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>,
+    turn_shared: Arc<Mutex<Turn>>,
     cursor_shared: Arc<Mutex<Option<(u32, u32)>>>)
 {
     let compute_program = Search::ParentsThenKids(3, 3)
@@ -159,15 +161,7 @@ pub fn run_gpu_loop(
     };
 
     let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = {
-        let share = img_canvas_shared.lock().unwrap();
-        if let Some(ref inner) = *share {
-            printlnc!(purple_bold: "reusing canvas");
-            inner.clone()
-        } else {
-            printlnc!(purple_bold: "new canvas");
-            image::ImageBuffer::from_pixel(
-                dims.0, dims.1, black)
-        }
+        img_canvas_shared.lock().unwrap().clone()
     };
     // temporary destination buffer
     let img_canvas_dest = img_canvas.clone();
@@ -439,9 +433,13 @@ pub fn run_gpu_loop(
 
         if talk { tracer.stage("share"); }
         {
-            let mut out = img_canvas_shared.lock().unwrap();
-            if out.is_none() {
-                *out = Some(img_canvas.clone());
+            let turn = {*turn_shared.lock().unwrap()};
+            if turn == Turn::WantData {
+                {
+                    let mut out = img_canvas_shared.lock().unwrap();
+                    *out = img_canvas.clone();
+                }
+                *turn_shared.lock().unwrap() = Turn::WantDisplay;
             }
         }
 

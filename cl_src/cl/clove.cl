@@ -229,6 +229,7 @@ __kernel void inflate(
     write_only image2d_t out_mask)
 {
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
+    /* const float2 pixel_idf  = (float2)((float)pixel_id.x, (float)pixel_id.y); */
     const uint rand_id = get_global_id(0) + get_global_id(1) * get_global_size(0);
     uint rand_seed = rand[rand_id];
     const int2 dims = get_image_dim(out_canvas);
@@ -248,7 +249,11 @@ __kernel void inflate(
     /* }  */
 
     if (rand_pm(&rand_seed) < 0.05) {
-        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 10, (rand_pm(&rand_seed) - 0.5) * 2);
+        /* float2 virtual_xy = (float2)(pixel_idf.x / 50, pixel_idf.y / 50); */
+        /* const int2 center_xy = (int2)(dims.x / 2, dims.y / 2); */
+        /* float factor = distance(convert_float2(pixel_id), convert_float2(center_xy)) / distance((float2)(0, 0), convert_float2(dims)); */
+        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 5,
+                                   (rand_pm(&rand_seed) - 0.5) * 5);
         const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset);
         const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id + offset);
         write_imagef(out_canvas, pixel_id, src_rgba);
