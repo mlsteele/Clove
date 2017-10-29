@@ -247,9 +247,18 @@ __kernel void inflate(
     /*     return;  */
     /* }  */
 
+    if (rand_pm(&rand_seed) < 0.05) {
+        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 10, (rand_pm(&rand_seed) - 0.5) * 2);
+        const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset);
+        const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id + offset);
+        write_imagef(out_canvas, pixel_id, src_rgba);
+        write_imagef(out_mask, pixel_id, mask_self);
+        return;
+    }
+
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
-    // TODO second term is wasteful
+    // TODO second term (rand off for circle) is wasteful
     if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.8) {
         // This spot is filled already. Copy over and get outta here.
         write_imagef(out_canvas, pixel_id, src_rgba);
@@ -280,7 +289,7 @@ __kernel void inflate(
     // Whether we are on the frontier
     const bool self_frontier = n_hot_neighbors > 0;
 
-    float4 out_canvas_rgba = (float4)(0, 0, .3, 1);
+    float4 out_canvas_rgba = src_rgba;
     float4 out_mask_rgba = (float4)(0, 0, 0, 1);
     if (self_frontier) {
         /* out_canvas_rgba = (float4)(0, 1, .2, 1); */
@@ -289,7 +298,8 @@ __kernel void inflate(
 	/* const float distance = rand_pm(&rand_seed); */
         /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
 
-	const float distance = .1; 
+	/* const float distance = .1; */
+	const float distance = .04;
 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); 
 
 	/* const float rx = rand_pm(&rand_seed); */

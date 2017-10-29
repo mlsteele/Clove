@@ -135,9 +135,14 @@ pub fn run_gpu_loop(
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     #[allow(unused_variables)]
     let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
+    #[allow(unused_variables)]
     let red: image::Rgba<u8> = image::Rgba{data: [255u8, 0u8, 0u8, 255u8]};
     #[allow(unused_variables)]
     let green: image::Rgba<u8> = image::Rgba{data: [0u8, 255u8, 0u8, 255u8]};
+    #[allow(unused_variables)]
+    let blue: image::Rgba<u8> = image::Rgba{data: [0u8, 127u8, 255u8, 255u8]};
+    #[allow(unused_variables)]
+    let orange: image::Rgba<u8> = image::Rgba{data: [255u8, 127u8, 0u8, 255u8]};
 
     printlnc!(white_bold: "initializing color queue");
     #[allow(unused_variables)]
@@ -153,8 +158,17 @@ pub fn run_gpu_loop(
         q
     };
 
-    let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, black);
+    let mut img_canvas: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = {
+        let share = img_canvas_shared.lock().unwrap();
+        if let Some(ref inner) = *share {
+            printlnc!(purple_bold: "reusing canvas");
+            inner.clone()
+        } else {
+            printlnc!(purple_bold: "new canvas");
+            image::ImageBuffer::from_pixel(
+                dims.0, dims.1, black)
+        }
+    };
     // temporary destination buffer
     let img_canvas_dest = img_canvas.clone();
 
@@ -197,8 +211,12 @@ pub fn run_gpu_loop(
         }
     };
 
-    place_pixel(center.0, center.1, green,
-                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+    for x in 0..dims.0 {
+        place_pixel(x, center.1, orange,
+                    &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        place_pixel(x, center.1 + 1, blue,
+                    &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+    }
 
     // Initialize the canvas
     // printlnc!(white_bold: "setting up board");
@@ -214,8 +232,11 @@ pub fn run_gpu_loop(
     //     }
     // }
 
-    printlnc!(white_bold: "saving start image");
-    img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
+    let save_enabled = false;
+    if save_enabled {
+        printlnc!(white_bold: "saving start image");
+        img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
+    }
 
     let cl_in_canvas = Image::<u8>::builder()
         .channel_order(ImageChannelOrder::Rgba)
@@ -269,7 +290,7 @@ pub fn run_gpu_loop(
 
     let talk_every = 200;
     let save_every = 1000;
-    let die_at = 400;
+    let die_at = 550;
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -391,7 +412,7 @@ pub fn run_gpu_loop(
             let cursor = cursor_shared.lock().unwrap();
             if let Some((x, y)) = *cursor {
                 if in_bounds(img_canvas.width(), img_canvas.height(), x, y) {
-                    place_pixel(x, y, red,
+                    place_pixel(x, y, black,
                                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
                 }
             }
@@ -399,7 +420,7 @@ pub fn run_gpu_loop(
 
         if talk { tracer.stage("save"); }
 
-        if frame % save_every == 0 {
+        if save_enabled && frame % save_every == 0 {
             img_canvas.save(&Path::new(&format!("result_{:06}.png", frame))).unwrap();
             // img_mask_filled.save(&Path::new(&format!("mask_{:06}.png", frame))).unwrap();
 
@@ -431,6 +452,8 @@ pub fn run_gpu_loop(
         }
     }
 
-    printlnc!(white_bold: "saving final");
-    img_canvas.save(&Path::new("result.png")).unwrap();
+    if save_enabled {
+        printlnc!(white_bold: "saving final");
+        img_canvas.save(&Path::new("result.png")).unwrap();
+    }
 }
