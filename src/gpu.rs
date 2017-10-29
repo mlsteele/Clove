@@ -92,6 +92,7 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
 
 // Check whether the point (x,y) falls within bounds of a
 // rect from (0,0) to (width,height).
+#[allow(dead_code)]
 fn in_bounds<T>(width: T, height: T, x: T, y: T) -> bool
     where T: Ord + Default
 {

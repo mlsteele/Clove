@@ -10,10 +10,11 @@ mod gpu;
 mod tracer;
 mod common;
 
+use rand::Rng;
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL,
     Texture, TextureSettings,
-    Transformed, MouseCursorEvent, RenderEvent,
+    Transformed, MouseCursorEvent, RenderEvent, UpdateEvent
 };
 use std::thread;
 use std::sync::{Arc,Mutex};
@@ -74,6 +75,18 @@ fn main() {
     // window.set_lazy(true);
     let scaleup = 1.5;
     while let Some(e) = window.next() {
+        e.update(|_| {
+            // Fake raindrop cursor
+            if rand::thread_rng().next_f32() < 0.9 {
+                *cursor_shared.lock().unwrap() = Cursor{
+                    enabled: true,
+                    x: rand::thread_rng().next_u32() % dims.0,
+                    y: rand::thread_rng().next_u32() % dims.1,
+                    pressed: false,
+                };
+            }
+        });
+
         e.mouse_cursor(|x,y| {
             *cursor_shared.lock().unwrap() = Cursor{
                 enabled: true,
