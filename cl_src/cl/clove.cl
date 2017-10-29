@@ -181,13 +181,14 @@ float rand_xorshift(uint2 randoms, uint globalID) {
 
 // 1 <= *seed < m
 float rand_pm(uint *seed) {
-    return (*seed) / 2147483647.0f; // 2**31-1
+    /* return (*seed) / 2147483647.0f; // 2**31-1 */
+
     // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
     long const a = 16807; // 7**5
     long const m = 2147483647; // 2**31-1
     *seed = ((long)(*seed) * a) % m;
     /* return (*seed) / 4294967295.0; */
-    return (*seed) / 2147483647; // 2**31-1
+    return (*seed) / 2147483647.0f; // 2**31-1
 }
 
 // Find a new color that is different from `rgba1` by `d`.
@@ -202,11 +203,11 @@ float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
     /* return (float4)(delta.x, delta.x, delta.x, 1); */
 
     delta -= (float3)(.5, .5, .5);
-    delta -= (float3)(.1, .1, .1);
-    delta -= (float3)(.1, .1, .1);
-    delta -= (float3)(.1, .1, .1);
-    delta -= (float3)(.1, .1, .1);
-    delta = (float3)(-10, -10, 2);
+    /* delta -= (float3)(.1, .1, .1); */
+    /* delta -= (float3)(.1, .1, .1); */
+    /* delta -= (float3)(.1, .1, .1); */
+    /* delta -= (float3)(.1, .1, .1); */
+    /* delta = (float3)(-10, -10, 2); */
     delta = normalize(delta) * d;
     const float r = rgba1.x + delta.x;   
     const float g = rgba1.y + delta.y; 
@@ -232,19 +233,19 @@ __kernel void inflate(
     uint rand_seed = rand[rand_id];
     const int2 dims = get_image_dim(out_canvas);
 
-    // test of randomness
-    /* { */
-    /*     float rx1 = rand_pm(&rand_seed); */
-    /*     float rx2 = rand_pm(&rand_seed); */
-    /*     /\* if (pixel_id == (int2)(100, 100)) { *\/ */
-    /*     if (pixel_id.x == 100 && pixel_id.y == 100) { */
-    /*         /\* printf("%v, %v", rx1, rx2): *\/ */
-    /*     } */
-    /*     float rx = ((rx1 - rx2) + 1) / 2; */
-    /*     float4 out_canvas_rgba = (float4)(rx, rx, rx, 1); */
-    /*     write_imagef(out_canvas, pixel_id, out_canvas_rgba); */
-    /*     return; */
-    /* } */
+    /* // test of randomness */
+    /* {  */
+    /*     float rx1 = rand_pm(&rand_seed);  */
+    /*     float rx2 = rand_pm(&rand_seed);  */
+    /*     /\* if (pixel_id == (int2)(100, 100)) { *\/  */
+    /*     if (pixel_id.x == 100 && pixel_id.y == 100) {  */
+    /*         printf("%f, %f\n", rx1, rx2); */
+    /*     }  */
+    /*     float rx = ((rx1 - rx2) + 1) / 2;  */
+    /*     float4 out_canvas_rgba = (float4)(rx, rx, rx, 1);  */
+    /*     write_imagef(out_canvas, pixel_id, out_canvas_rgba);  */
+    /*     return;  */
+    /* }  */
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
@@ -288,7 +289,7 @@ __kernel void inflate(
 	/* const float distance = rand_pm(&rand_seed); */
         /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
 
-	const float distance = .025; 
+	const float distance = .1; 
 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); 
 
 	/* const float rx = rand_pm(&rand_seed); */

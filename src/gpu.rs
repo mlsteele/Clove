@@ -89,6 +89,18 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
     neighbors
 }
 
+// Check whether the point (x,y) falls within bounds of a
+// rect from (0,0) to (width,height).
+fn in_bounds<T>(width: T, height: T, x: T, y: T) -> bool
+    where T: Ord + Default
+{
+    let zero: T = Default::default();
+    if x >= zero && y >= zero && x < width && y < height {
+        return true;
+    }
+    return false;
+}
+
 pub fn run_gpu_loop(
     dims: (u32, u32),
     img_canvas_shared: Arc<Mutex<Option<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>>,
@@ -378,8 +390,10 @@ pub fn run_gpu_loop(
         {
             let cursor = cursor_shared.lock().unwrap();
             if let Some((x, y)) = *cursor {
-                place_pixel(x, y, red,
-                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+                if in_bounds(img_canvas.width(), img_canvas.height(), x, y) {
+                    place_pixel(x, y, red,
+                                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+                }
             }
         }
 
