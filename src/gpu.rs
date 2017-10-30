@@ -9,6 +9,7 @@ use rand::Rng;
 use std::collections::vec_deque::VecDeque;
 use tracer::TimeTracer;
 use std::sync::{Arc,Mutex};
+use std::time;
 use common::{Turn, Cursor};
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
@@ -101,6 +102,12 @@ fn in_bounds<T>(width: T, height: T, x: T, y: T) -> bool
         return true;
     }
     return false;
+}
+
+fn duration_millis(d: &time::Duration) -> i64 {
+    const MILLIS_PER_SEC: i64 = 1000;
+    const NANOS_PER_MILLI: i32 = 1000_000;
+    return (d.as_secs() as i64 * MILLIS_PER_SEC) + (d.subsec_nanos() as i64 / NANOS_PER_MILLI as i64);
 }
 
 pub fn run_gpu_loop(
@@ -280,6 +287,7 @@ pub fn run_gpu_loop(
         .arg_img_named("canvas", Some(&cl_in_canvas))
         .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
         .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
+        .arg_vec_named::<ocl::prm::Uint>("time_ms", None)
         .arg_vec_named::<ocl::prm::Uint>("cursor_enabled", None)
         .arg_vec_named::<ocl::prm::Uint2>("cursor_xy", None)
         // .arg_vec_named::<ocl::prm::Float4>("goal", None)
@@ -290,6 +298,8 @@ pub fn run_gpu_loop(
     let save_every = 1000;
     // let die_at = 550;
     let die_at = 10000;
+
+    let start = time::Instant::now();
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
@@ -357,6 +367,9 @@ pub fn run_gpu_loop(
         // );
 
         kernel.set_arg_buf_named("rand", Some(&in_rands)).unwrap();
+
+        let since = start.elapsed();
+        kernel.set_arg_vec_named("time_ms", ocl::prm::Uint::new(duration_millis(&since) as u32)).unwrap();
 
         // kernel.set_arg_vec_named("goal", goal).unwrap();
         {
