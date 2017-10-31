@@ -1,3 +1,4 @@
+extern crate camera_capture;
 #[macro_use] extern crate colorify;
 extern crate find_folder;
 extern crate image;
@@ -8,6 +9,7 @@ extern crate time;
 
 mod gpu;
 mod tracer;
+mod cam;
 mod common;
 
 use rand::Rng;
@@ -19,10 +21,11 @@ use piston_window::{
 use std::thread;
 use std::sync::{Arc,Mutex};
 use std::time::Duration;
+use std::sync::mpsc;
 use common::{Turn, Cursor};
 
 fn main() {
-    let dims: (u32, u32) = (1000, 500);
+    let dims: (u32, u32) = (848, 480);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let bg_color = [0.3, 0.0, 0.3, 1.];
@@ -38,22 +41,37 @@ fn main() {
 
     let cursor_shared = Arc::new(Mutex::new(Default::default()));
 
+    // Start the cam loop
+    let cam_receiver = {
+        let (tx, rx) = mpsc::sync_channel(1);
+        thread::Builder::new().name("cam".to_owned()).spawn(move || {
+            cam::cam_loop(dims, tx);
+        }).unwrap();
+        rx
+    };
+
+    let _ = cam_receiver.recv().expect("cam img");
+
+    // Start the gpu loop (with supervisor wrapper)
     {
         let img_canvas_shared = Arc::clone(&img_canvas_shared);
         let cursor_shared = Arc::clone(&cursor_shared);
         let turn_shared = Arc::clone(&turn_shared);
-        thread::spawn(move || {
+        let cam_receiver = Arc::new(Mutex::new(cam_receiver));
+        thread::Builder::new().name("gpu-super".to_owned()).spawn(move || {
+            let cam_receiver = Arc::clone(&cam_receiver);
             loop {
                 let img_canvas_shared = Arc::clone(&img_canvas_shared);
                 let cursor_shared = Arc::clone(&cursor_shared);
                 let turn_shared = Arc::clone(&turn_shared);
-                let gpu_thread = thread::spawn(move || {
-                    gpu::run_gpu_loop(dims, img_canvas_shared, turn_shared, cursor_shared);
-                });
+                let cam_receiver = Arc::clone(&cam_receiver);
+                let gpu_thread = thread::Builder::new().name("gpu-inner".to_owned()).spawn(move || {
+                    gpu::run_gpu_loop(dims, img_canvas_shared, turn_shared, cursor_shared, cam_receiver);
+                }).unwrap();
                 let _ = gpu_thread.join();
                 thread::sleep(Duration::from_millis(150));
             }
-        });
+        }).unwrap();
     }
 
     // // Skip opengl
@@ -116,4 +134,3 @@ fn main() {
         });
     }
 }
-

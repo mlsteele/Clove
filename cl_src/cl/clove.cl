@@ -224,6 +224,15 @@ float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
     return clamp(result, 0.0f, 1.0f);
 }
 
+float4 color_avg(float4 rgba1, float4 rgba2) {
+    return (rgba1 + rgba2) / 2;
+}
+
+float4 color_mix(float factor, float4 c1, float4 c2) {
+    factor = clamp(factor, 0.0f, 1.0f);
+    return (1.0f - factor) * c1 + factor * c2;
+}
+
 __constant int2 neighbor_deltas[8] = {
     (int2)(-1, -1),
     (int2)(-1, 0),
@@ -255,6 +264,11 @@ __kernel void inflate(
     uint rand_seed = rand[rand_id];
     const int2 dims = get_image_dim(out_canvas);
 
+    // Show the subject
+    /* const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);  */
+    /* write_imagef(out_canvas, pixel_id, subject_rgba);    */
+    /* return;  */
+
     /* // test of randomness */
     /* {  */
     /*     float rx1 = rand_pm(&rand_seed);  */
@@ -278,7 +292,7 @@ __kernel void inflate(
     /*     return; */
     /* } */
 
-    if (cursor_enabled > 0) {
+    if (cursor_enabled > 0 && time_ms > 4000) {
         const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy));
         if (distance_to_cursor < 40 + (20 * rand_pm(&rand_seed))) {
             /* const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3 + 4, */
@@ -351,25 +365,39 @@ __kernel void inflate(
 
 	const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
 
-	/* const float distance = .04; */
-	const float distance = .01;
+	const float distance = .04;
+	/* const float distance = .01; */
 	/* const float distance = .005; */
 	/* const float distance = cos(convert_float(time_ms) * 0.0001) * .08f; */
 	/* const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f; */
-	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
+	/* out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); */
+        /* const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000)); */
+        /* const float factor = 0.1 * (1.0f - length(subject_rgba) / 3); */
+        float max4len = length((float4)(1, 1, 1, 1));
+        /* if (length(subject_rgba) / max4len > 0.7f) { */
+        /*     factor = 0.0f; */
+        /* } */
+        /* float factor = 0.08f * (1.0f - length(subject_rgba) / max4len); */
+        /* float factor = 0.04f; */
+        float factor = 0.1f;
+        const float4 departure_lounge = color_mix(factor, selected_neighbor_rgba, subject_rgba);
+	out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed);
 
-	// Write out the subject.
-	/* if (rand_pm(&rand_seed) < 0.1) { */
-	/*     const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);    */
-	/*     out_canvas_rgba = subject_rgba; */
+	/* /\* Write out the subject. *\/ */
+	/* if (rand_pm(&rand_seed) < 0.05) { */
+	/*     const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);     */
+	/*     out_canvas_rgba = subject_rgba;  */
+	/* }  */
+
+	/* Though must be close to elephant */
+	/* for (int i = 0; i < 100; i++) { */
+	/*     if (color_distance(subject_rgba, out_canvas_rgba) > 0.1) { */
+	/* 	// Re-reoll */
+	/* 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); */
+	/*     } else { */
+	/*       break; */
+	/*     } */
 	/* } */
-
-	// Though must be close to elephant
-	
-	if (color_distance(subject_rgba, out_canvas_rgba) > 0.3) {
-	    // Reset to elephant
-	    out_canvas_rgba = subject_rgba;
-	}
 
 	/* const float rx = rand_pm(&rand_seed); */
 	/* out_canvas_rgba = (float4)(rx, rx, rx, 1); */

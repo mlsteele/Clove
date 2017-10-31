@@ -11,6 +11,9 @@ use tracer::TimeTracer;
 use std::sync::{Arc,Mutex};
 use std::time;
 use common::{Turn, Cursor};
+use std::sync::mpsc;
+use cam;
+use cam::{CamImg};
 
 const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
 const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
@@ -115,6 +118,7 @@ pub fn run_gpu_loop(
     img_canvas_shared: Arc<Mutex<image::ImageBuffer<image::Rgba<u8>, Vec<u8>>>>,
     turn_shared: Arc<Mutex<Turn>>,
     cursor_shared: Arc<Mutex<Cursor>>,
+    cam_rx: Arc<Mutex<mpsc::Receiver<CamImg>>>,
 ) {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl_src").expect("Error locating 'cl_src'")
@@ -141,9 +145,13 @@ pub fn run_gpu_loop(
         .unwrap();
 
     // TODO subject is the wrong dims
-    let img_subject = image::open(&Path::new("resources/elephant.jpg"))
-        .expect("load subject")
-        .to_rgba();
+    // let img_subject = image::open(&Path::new("resources/elephant.jpg"))
+    //     .expect("load subject")
+    //     .to_rgba();
+
+    // TODO subject is the wrong dims
+    let mut img_subject: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
+        cam::convert(cam_rx.lock().unwrap().recv().expect("cam recv"));
 
     let center = (dims.0 / 2, dims.1 / 2);
 
@@ -316,20 +324,34 @@ pub fn run_gpu_loop(
         .arg_img(&cl_out_mask_filled);
 
     let talk_every = 200;
+    let cam_every = 10;
     let save_every = 1000;
-    let die_at = 700;
-    // let die_at = 550;
-    // let die_at = 10000;
+    // let die_at = 700;
+    let die_at = 10000;
 
     let start = time::Instant::now();
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
+        let cam: bool = frame % cam_every == 0;
         // let talk: bool = true;
 
         let mut tracer = TimeTracer::new("frame");
 
         if talk { printlnc!(white_bold: "\nFrame: {}", frame) };
+
+        if talk { tracer.stage("cam") };
+
+        if cam {
+            match cam_rx.lock().unwrap().try_recv() {
+                Ok(img) => {
+                    img_subject = cam::convert(img);
+                    printlnc!(royal_blue: "cam frame");
+                },
+                Err(mpsc::TryRecvError::Empty) => {},
+                Err(mpsc::TryRecvError::Disconnected) => panic!("cam receiver disconnected"),
+            };
+        }
 
         if talk { tracer.stage("create memory bindings") };
 

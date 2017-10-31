@@ -11,3 +11,4 @@ ocl = "0.15.0"
 piston_window = "0.71.1"
 rand = "0.3.14"
 time = "0.1.38"
+camera_capture = { git = "https://github.com/mlsteele/camera_capture.git", rev = "e356f10" }
