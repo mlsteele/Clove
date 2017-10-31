@@ -349,15 +349,25 @@ __kernel void inflate(
 	/* const float distance = rand_pm(&rand_seed); */
         /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
 
+	const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
+
 	/* const float distance = .04; */
-	const float distance = .005;
+	const float distance = .01;
+	/* const float distance = .005; */
 	/* const float distance = cos(convert_float(time_ms) * 0.0001) * .08f; */
 	/* const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f; */
-	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); 
+	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
 
 	// Write out the subject.
-	if (rand_pm(&rand_seed) < 0.1) {
-	    const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);   
+	/* if (rand_pm(&rand_seed) < 0.1) { */
+	/*     const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);    */
+	/*     out_canvas_rgba = subject_rgba; */
+	/* } */
+
+	// Though must be close to elephant
+	
+	if (color_distance(subject_rgba, out_canvas_rgba) > 0.3) {
+	    // Reset to elephant
 	    out_canvas_rgba = subject_rgba;
 	}
 
