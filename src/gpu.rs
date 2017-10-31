@@ -140,6 +140,11 @@ pub fn run_gpu_loop(
         .build(&context)
         .unwrap();
 
+    // TODO subject is the wrong dims
+    let img_subject = image::open(&Path::new("resources/elephant.jpg"))
+        .expect("load subject")
+        .to_rgba();
+
     let center = (dims.0 / 2, dims.1 / 2);
 
     #[allow(unused_variables)]
@@ -214,12 +219,17 @@ pub fn run_gpu_loop(
         }
     };
 
-    for x in 0..dims.0 {
-        place_pixel(x, center.1, orange,
-                    &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-        place_pixel(x, center.1 + 1, blue,
-                    &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-    }
+    // Draw a sunset bar
+    // for x in 0..dims.0 {
+    //     place_pixel(x, center.1, orange,
+    //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+    //     place_pixel(x, center.1 + 1, blue,
+    //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+    // }
+
+    // Start with a white pixel in the middle.
+    place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1),
+                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
 
     // Initialize the canvas
     // printlnc!(white_bold: "setting up board");
@@ -261,6 +271,16 @@ pub fn run_gpu_loop(
         .host_data(&img_mask_filled)
         .build().unwrap();
 
+    let cl_in_subject = Image::<u8>::builder()
+        .channel_order(ImageChannelOrder::Rgba)
+        .channel_data_type(ImageChannelDataType::UnormInt8)
+        .image_type(MemObjectType::Image2d)
+        .dims(&dims)
+        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+        .queue(queue.clone())
+        .host_data(&img_subject)
+        .build().unwrap();
+
     let cl_out_canvas = Image::<u8>::builder()
         .channel_order(ImageChannelOrder::Rgba)
         .channel_data_type(ImageChannelDataType::UnormInt8)
@@ -286,6 +306,7 @@ pub fn run_gpu_loop(
         .gws(&dims)
         .arg_img_named("canvas", Some(&cl_in_canvas))
         .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
+        .arg_img_named("subject", Some(&cl_in_subject))
         .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
         .arg_vec_named::<ocl::prm::Uint>("time_ms", None)
         .arg_vec_named::<ocl::prm::Uint>("cursor_enabled", None)
@@ -296,8 +317,9 @@ pub fn run_gpu_loop(
 
     let talk_every = 200;
     let save_every = 1000;
+    let die_at = 700;
     // let die_at = 550;
-    let die_at = 10000;
+    // let die_at = 10000;
 
     let start = time::Instant::now();
 
@@ -331,11 +353,22 @@ pub fn run_gpu_loop(
             .host_data(&img_mask_filled)
             .build().unwrap();
 
+        let cl_in_subject = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
+            .queue(queue.clone())
+            .host_data(&img_subject)
+            .build().unwrap();
+
         // cl_in_canvas.write(&img_canvas).enq().unwrap();
         // cl_in_mask_filled.write(&img_mask_filled).enq().unwrap();
 
         kernel.set_arg_img_named("canvas", Some(&cl_in_canvas)).unwrap();
         kernel.set_arg_img_named("mask_filled", Some(&cl_in_mask_filled)).unwrap();
+        kernel.set_arg_img_named("subject", Some(&cl_in_subject)).unwrap();
 
         // let target = color_queue.pop_front();
         // if target.is_none() {
