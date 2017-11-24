@@ -25,7 +25,8 @@ use std::sync::mpsc;
 use common::{Turn, Cursor};
 
 fn main() {
-    let dims: (u32, u32) = (848, 480);
+    // let dims: (u32, u32) = (848, 480); // cam dims
+    let dims: (u32, u32) = (1000, 500); // elephant dims
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let bg_color = [0.3, 0.0, 0.3, 1.];
@@ -45,12 +46,16 @@ fn main() {
     let cam_receiver = {
         let (tx, rx) = mpsc::sync_channel(1);
         thread::Builder::new().name("cam".to_owned()).spawn(move || {
-            cam::cam_loop(dims, tx);
+            if false {
+                // Disable the cam
+                cam::cam_loop(dims, tx);
+            }
         }).unwrap();
         rx
     };
 
-    let _ = cam_receiver.recv().expect("cam img");
+    // Test the cam. Exceptions are easier to debug from out here.
+    // let _ = cam_receiver.recv().expect("cam img");
 
     // Start the gpu loop (with supervisor wrapper)
     {

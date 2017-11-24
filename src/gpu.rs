@@ -144,14 +144,19 @@ pub fn run_gpu_loop(
         .build(&context)
         .unwrap();
 
-    // TODO subject is the wrong dims
-    // let img_subject = image::open(&Path::new("resources/elephant.jpg"))
-    //     .expect("load subject")
-    //     .to_rgba();
-
-    // TODO subject is the wrong dims
-    let mut img_subject: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> =
-        cam::convert(cam_rx.lock().unwrap().recv().expect("cam recv"));
+    let mut img_subject: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = {
+        // TODO subject may not be correct dims
+        if true {
+            // Subject is an elephant
+            image::open(&Path::new("resources/elephant.jpg"))
+                .expect("load subject")
+                .to_rgba()
+        } else {
+            // Subject is the camera
+            // TODO subject may not be correct dims
+            cam::convert(cam_rx.lock().unwrap().recv().expect("cam recv"))
+        }
+    };
 
     let center = (dims.0 / 2, dims.1 / 2);
 
@@ -324,6 +329,7 @@ pub fn run_gpu_loop(
         .arg_img(&cl_out_mask_filled);
 
     let talk_every = 200;
+    #[allow(unused_variables)]
     let cam_every = 10;
     let save_every = 1000;
     // let die_at = 700;
@@ -333,8 +339,8 @@ pub fn run_gpu_loop(
 
     'outer: for frame in 1..(dims.0 * dims.1) {
         let talk: bool = frame % talk_every == 0;
-        let cam: bool = frame % cam_every == 0;
-        // let talk: bool = true;
+        // let cam: bool = frame % cam_every == 0;
+        let cam: bool = false;
 
         let mut tracer = TimeTracer::new("frame");
 
