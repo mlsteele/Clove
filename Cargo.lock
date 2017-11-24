@@ -1,5 +1,5 @@
 [root]
-name = "clove"
+name = "pastiche"
 version = "0.1.0"
 dependencies = [
  "camera_capture 0.4.0 (git+https://github.com/mlsteele/camera_capture.git?rev=e356f10)",

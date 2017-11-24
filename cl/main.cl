@@ -247,7 +247,7 @@ __constant int2 neighbor_deltas[8] = {
 
 // Pick a new color for pixels on the frontier.
 // Mask is hot for pixels that are already filled.
-__kernel void inflate(
+__kernel void pastiche(
     read_only image2d_t in_canvas,
     read_only image2d_t in_mask,
     read_only image2d_t in_subject,

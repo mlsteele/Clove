@@ -121,8 +121,8 @@ pub fn run_gpu_loop(
     cam_rx: Arc<Mutex<mpsc::Receiver<CamImg>>>,
 ) {
     let compute_program = Search::ParentsThenKids(3, 3)
-        .for_folder("cl_src").expect("Error locating 'cl_src'")
-        .join("cl/clove.cl");
+        .for_folder("cl").expect("Error locating 'cl'")
+        .join("main.cl");
 
     println!("getting ocl context...");
     let context = Context::builder().devices(Device::specifier()
@@ -309,7 +309,7 @@ pub fn run_gpu_loop(
         .host_data(&img_mask_filled_dest)
         .build().unwrap();
 
-    let mut kernel = Kernel::new("inflate", &program).unwrap()
+    let mut kernel = Kernel::new("pastiche", &program).unwrap()
         .queue(queue.clone())
         .gws(&dims)
         .arg_img_named("canvas", Some(&cl_in_canvas))
