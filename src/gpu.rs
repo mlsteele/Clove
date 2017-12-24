@@ -174,6 +174,14 @@ pub fn run_gpu_loop(
     let blue: image::Rgba<u8> = image::Rgba{data: [0u8, 127u8, 255u8, 255u8]};
     #[allow(unused_variables)]
     let orange: image::Rgba<u8> = image::Rgba{data: [255u8, 127u8, 0u8, 255u8]};
+    // #[allow(unused_variables)]
+    // let xmas_green: image::Rgba<u8> = image::Rgba{data: [7u8, 86u8, 0u8, 255u8]};
+    #[allow(unused_variables)]
+    let xmas_green: image::Rgba<u8> = image::Rgba{data: [100u8, 186u8, 100u8, 255u8]};
+    #[allow(unused_variables)]
+    let xmas_red: image::Rgba<u8> = image::Rgba{data: [170u8, 0u8, 0u8, 255u8]};
+    #[allow(unused_variables)]
+    let xmas_yellow: image::Rgba<u8> = image::Rgba{data: [240u8, 219u8, 77u8, 255u8]};
 
     printlnc!(white_bold: "initializing color queue");
     #[allow(unused_variables)]
@@ -245,9 +253,6 @@ pub fn run_gpu_loop(
     // // Start with a pixel in the middle.
     // place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1),
     //             &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
-    // Start with a white pixel in the middle.
-    place_pixel(center.0, center.1, white,
-                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
 
     // Initialize the canvas
     // printlnc!(white_bold: "setting up board");
@@ -328,6 +333,7 @@ pub fn run_gpu_loop(
         .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
         .arg_vec_named::<ocl::prm::Uint>("time_ms", None)
         .arg_vec_named::<ocl::prm::Uint>("cursor_enabled", None)
+        .arg_vec_named::<ocl::prm::Uint>("cursor_pressed", None)
         .arg_vec_named::<ocl::prm::Uint2>("cursor_xy", None)
         // .arg_vec_named::<ocl::prm::Float4>("goal", None)
         .arg_img(&cl_out_canvas)
@@ -342,7 +348,7 @@ pub fn run_gpu_loop(
 
     let start = time::Instant::now();
 
-    'outer: for frame in 1..(dims.0 * dims.1) {
+    'outer: for frame in 0.. {
         let talk: bool = frame % talk_every == 0;
         // let cam: bool = frame % cam_every == 0;
         let cam: bool = false;
@@ -455,7 +461,9 @@ pub fn run_gpu_loop(
         {
             let cursor = cursor_shared.lock().unwrap();
             let enabled = if cursor.enabled { 1 } else { 0 };
+            let pressed = if cursor.pressed { 1 } else { 0 };
             kernel.set_arg_vec_named("cursor_enabled", enabled).unwrap();
+            kernel.set_arg_vec_named("cursor_pressed", pressed).unwrap();
             kernel.set_arg_vec_named("cursor_xy", ocl::prm::Uint2::new(cursor.x, cursor.y)).unwrap();
         }
 
@@ -474,6 +482,15 @@ pub fn run_gpu_loop(
         if talk { tracer.stage("pick"); }
 
         if talk { tracer.stage("place"); }
+
+        let place_every: u32 = 50;
+        if frame % place_every == 0 {
+            let i = frame / place_every;
+            if i < 10 {
+                place_pixel(center.0, center.1 - (i - 5) * 50 - 100, xmas_green,
+                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+            }
+        }
 
         // if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {
         //     place_pixel(x, y, target,

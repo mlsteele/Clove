@@ -16,8 +16,8 @@ use rand::Rng;
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL,
     Texture, TextureSettings, Transformed,
-    MouseCursorEvent, RenderEvent, UpdateEvent, ReleaseEvent,
-    Button, Key,
+    MouseCursorEvent, RenderEvent, UpdateEvent, ReleaseEvent, ButtonEvent,
+    Button, ButtonState, MouseButton, Key,
 };
 use std::thread;
 use std::sync::{Arc,Mutex};
@@ -30,12 +30,16 @@ const CAM_ENABLE: bool = false;
 fn main() {
     // let dims: (u32, u32) = (848, 480); // cam dims
     // let dims: (u32, u32) = (1000, 500); // elephant dims
-    let dims: (u32, u32) = (1920 / 2, 1080 / 2);
+    // let dims: (u32, u32) = (1920 / 2, 1080 / 2);
+    let dims: (u32, u32) = (1000, 1000);
 
+    #[allow(unused_variables)]
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
+    #[allow(unused_variables)]
+    let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
     let bg_color = [0.3, 0.0, 0.3, 1.];
     let img_blank: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, black);
+        dims.0, dims.1, white);
 
     // This shared canvas is written to by the GPU thread
     // and read by the gui.
@@ -112,11 +116,12 @@ fn main() {
 
     // window.set_lazy(true);
     // let scaleup = 1.5;
-    let scaleup = 2.0;
+    let scaleup = 1.0;
     while let Some(e) = window.next() {
         e.update(|_| {
+            const FAKE_MOUSE: bool = false;
             // Fake raindrop cursor
-            if rand::thread_rng().next_f32() < 0.9 {
+            if FAKE_MOUSE && rand::thread_rng().next_f32() < 0.9 {
                 *cursor_shared.lock().unwrap() = Cursor{
                     enabled: true,
                     x: rand::thread_rng().next_u32() % dims.0,
@@ -127,12 +132,19 @@ fn main() {
         });
 
         e.mouse_cursor(|x,y| {
-            *cursor_shared.lock().unwrap() = Cursor{
-                enabled: true,
-                x: (x / scaleup) as u32,
-                y: (y / scaleup) as u32,
-                pressed: false,
-            };
+            let mut c = cursor_shared.lock().unwrap();
+            c.enabled = true;
+            c.x = (x / scaleup) as u32;
+            c.y = (y / scaleup) as u32;
+        });
+
+        e.button(|arg| {
+            if arg.button == Button::Mouse(MouseButton::Left) {
+                cursor_shared.lock().unwrap().pressed = match arg.state {
+                    ButtonState::Press   => true,
+                    ButtonState::Release => false,
+                }
+            }
         });
 
         e.release(|button| {

@@ -254,6 +254,7 @@ __kernel void pastiche(
     global uint *rand,
     read_only uint time_ms,
     read_only uint cursor_enabled,
+    read_only uint cursor_pressed,
     read_only uint2 cursor_xy,
     write_only image2d_t out_canvas,
     write_only image2d_t out_mask)
@@ -292,35 +293,61 @@ __kernel void pastiche(
     /*     return;  */
     /* }  */
 
-    // Cursor
-    if (cursor_enabled > 0 && time_ms > 4000) {
+    // Cursor blockout
+    /* if (cursor_enabled > 0 && time_ms > 4000) { */
+    /*     const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy)); */
+    /*     if (distance_to_cursor < 40 + (20 * rand_pm(&rand_seed))) { */
+    /*         /\* const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3 + 4, *\/ */
+    /*         /\*                         (rand_pm(&rand_seed) - 0.5) * 2 + 2); *\/ */
+    /*         const int2 offset = (int2)(0,0); */
+    /*         const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset); */
+    /*         /\* const float4 out_canvas_rgba = (float4)(0, 0, 0, 1); *\/ */
+    /*         const float4 out_mask_rgba = (float4)(0, 0, 0, 1); */
+    /*         write_imagef(out_canvas, pixel_id, src_rgba); */
+    /*         write_imagef(out_mask, pixel_id, out_mask_rgba); */
+    /*         return; */
+    /*     } */
+    /* } */
+
+    // Cursor pressed
+    if (cursor_enabled > 0 && cursor_pressed > 0) {
         const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy));
-        if (distance_to_cursor < 40 + (20 * rand_pm(&rand_seed))) {
-            /* const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3 + 4, */
-            /*                         (rand_pm(&rand_seed) - 0.5) * 2 + 2); */
-	    const int2 offset = (int2)(0,0);
-            const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset);
-            /* const float4 out_canvas_rgba = (float4)(0, 0, 0, 1); */
-            const float4 out_mask_rgba = (float4)(0, 0, 0, 1);
-            write_imagef(out_canvas, pixel_id, src_rgba);
-            write_imagef(out_mask, pixel_id, out_mask_rgba);
-            return;
+        if (time_ms < 30000) {
+            if (distance_to_cursor < 20) {
+                const float4 out_canvas_rgba = (float4)(0.667, 0, 0, 1);
+                write_imagef(out_canvas, pixel_id, out_canvas_rgba);
+
+                float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+                if (distance_to_cursor < 5) {
+                    out_mask_rgba = (float4)(1, 1, 1, 1);
+                }
+                write_imagef(out_mask, pixel_id, out_mask_rgba);
+                return;
+            }
+        } else {
+            if (distance_to_cursor < 2) {
+                const float4 out_canvas_rgba = (float4)(1, 1, 1, 1);
+                write_imagef(out_canvas, pixel_id, out_canvas_rgba);
+                const float4 out_mask_rgba = (float4)(1, 1, 1, 1);
+                write_imagef(out_mask, pixel_id, out_mask_rgba);
+                return;
+            }
         }
     }
 
     // Do the fizzy thing where pixels wiggle around.
-    if (rand_pm(&rand_seed) < 0.05) {
-        /* float2 virtual_xy = (float2)(pixel_idf.x / 50, pixel_idf.y / 50); */
-        /* const int2 center_xy = (int2)(dims.x / 2, dims.y / 2); */
-        /* float factor = distance(convert_float2(pixel_id), convert_float2(center_xy)) / distance((float2)(0, 0), convert_float2(dims)); */
-        const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3,
-                                   (rand_pm(&rand_seed) - 0.5) * 2);
-        const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset);
-        const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id + offset);
-        write_imagef(out_canvas, pixel_id, src_rgba);
-        write_imagef(out_mask, pixel_id, mask_self);
-        return;
-    }
+    /* if (rand_pm(&rand_seed) < 0.05) { */
+    /*     /\* float2 virtual_xy = (float2)(pixel_idf.x / 50, pixel_idf.y / 50); *\/ */
+    /*     /\* const int2 center_xy = (int2)(dims.x / 2, dims.y / 2); *\/ */
+    /*     /\* float factor = distance(convert_float2(pixel_id), convert_float2(center_xy)) / distance((float2)(0, 0), convert_float2(dims)); *\/ */
+    /*     const int2 offset = (int2)((rand_pm(&rand_seed) - 0.5) * 3, */
+    /*                                (rand_pm(&rand_seed) - 0.5) * 2); */
+    /*     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id + offset); */
+    /*     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id + offset); */
+    /*     write_imagef(out_canvas, pixel_id, src_rgba); */
+    /*     write_imagef(out_mask, pixel_id, mask_self); */
+    /*     return; */
+    /* } */
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
@@ -337,6 +364,7 @@ __kernel void pastiche(
     // TODO neighbor should be selected randomly
     float4 selected_neighbor_rgba = (float4)(1,0,1,1);
     int neighbor_index_offset = rand_pm_uint(&rand_seed) % 8;
+    int2 neighbors_dxy = (int2)(0, 0);
     for (int i = 0; i < 8; i++) {
         int2 dxy = neighbor_deltas[(i + neighbor_index_offset) % 8];
 
@@ -349,8 +377,13 @@ __kernel void pastiche(
                 n_hot_neighbors += 1;
                 const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc);
                 selected_neighbor_rgba = rgba_neighbor;
+                neighbors_dxy += dxy;
             }
         }
+    }
+
+    if (neighbors_dxy.y > 0) {
+        return;
     }
 
     // Whether we are on the frontier
@@ -372,7 +405,7 @@ __kernel void pastiche(
 	/* const float distance = .005; */
 	/* const float distance = cos(convert_float(time_ms) * 0.0001) * .08f; */
 	/* const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f; */
-        const float distance = .08f;;
+        const float distance = .06f;;
 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
         /* const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000)); */
         /* const float factor = 0.1 * (1.0f - length(subject_rgba) / 3); */
