@@ -15,14 +15,17 @@ mod common;
 use rand::Rng;
 use piston_window::{
     PistonWindow, WindowSettings, OpenGL,
-    Texture, TextureSettings,
-    Transformed, MouseCursorEvent, RenderEvent, UpdateEvent
+    Texture, TextureSettings, Transformed,
+    MouseCursorEvent, RenderEvent, UpdateEvent, ReleaseEvent,
+    Button, Key,
 };
 use std::thread;
 use std::sync::{Arc,Mutex};
 use std::time::Duration;
 use std::sync::mpsc;
 use common::{Turn, Cursor};
+
+const CAM_ENABLE: bool = false;
 
 fn main() {
     // let dims: (u32, u32) = (848, 480); // cam dims
@@ -46,13 +49,15 @@ fn main() {
     let cam_receiver = {
         let (tx, rx) = mpsc::sync_channel(1);
         thread::Builder::new().name("cam".to_owned()).spawn(move || {
-            if false {
+            if CAM_ENABLE {
                 // Disable the cam
                 cam::cam_loop(dims, tx);
             }
         }).unwrap();
         rx
     };
+
+    let (gpu_stop_sender, gpu_stop_receiver) = mpsc::sync_channel(1);
 
     // Test the cam. Exceptions are easier to debug from out here.
     // let _ = cam_receiver.recv().expect("cam img");
@@ -63,18 +68,27 @@ fn main() {
         let cursor_shared = Arc::clone(&cursor_shared);
         let turn_shared = Arc::clone(&turn_shared);
         let cam_receiver = Arc::new(Mutex::new(cam_receiver));
-        thread::Builder::new().name("gpu-super".to_owned()).spawn(move || {
+        let stop_receiver = Arc::new(Mutex::new(gpu_stop_receiver));
+        thread::Builder::new().name("gpu-outer".to_owned()).spawn(move || {
             let cam_receiver = Arc::clone(&cam_receiver);
             loop {
                 let img_canvas_shared = Arc::clone(&img_canvas_shared);
                 let cursor_shared = Arc::clone(&cursor_shared);
                 let turn_shared = Arc::clone(&turn_shared);
                 let cam_receiver = Arc::clone(&cam_receiver);
+                let stop_receiver = Arc::clone(&stop_receiver);
                 let gpu_thread = thread::Builder::new().name("gpu-inner".to_owned()).spawn(move || {
-                    gpu::run_gpu_loop(dims, img_canvas_shared, turn_shared, cursor_shared, cam_receiver);
+                    gpu::run_gpu_loop(
+                        dims,
+                        img_canvas_shared,
+                        turn_shared,
+                        cursor_shared,
+                        cam_receiver,
+                        Some(stop_receiver),
+                    );
                 }).unwrap();
                 let _ = gpu_thread.join();
-                thread::sleep(Duration::from_millis(150));
+                thread::sleep(Duration::from_millis(50));
             }
         }).unwrap();
     }
@@ -117,6 +131,13 @@ fn main() {
                 y: (y / scaleup) as u32,
                 pressed: false,
             };
+        });
+
+        e.release(|button| {
+            if button == Button::Keyboard(Key::R) {
+                let _ = gpu_stop_sender.send(());
+                printlnc!(red: "reload");
+            }
         });
 
         e.render(|_| {

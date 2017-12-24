@@ -2,6 +2,7 @@ use image;
 use ocl;
 use rand;
 use std::path::Path;
+use std::sync::mpsc::TryRecvError;
 use ocl::{Context, Queue, Device, Program, Image, Kernel};
 use ocl::enums::{ImageChannelOrder, ImageChannelDataType, MemObjectType};
 use find_folder::Search;
@@ -119,6 +120,7 @@ pub fn run_gpu_loop(
     turn_shared: Arc<Mutex<Turn>>,
     cursor_shared: Arc<Mutex<Cursor>>,
     cam_rx: Arc<Mutex<mpsc::Receiver<CamImg>>>,
+    stop_rx: Option<Arc<Mutex<mpsc::Receiver<()>>>>,
 ) {
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl").expect("Error locating 'cl'")
@@ -345,6 +347,20 @@ pub fn run_gpu_loop(
         let mut tracer = TimeTracer::new("frame");
 
         if talk { printlnc!(white_bold: "\nFrame: {}", frame) };
+
+        if let Some(ref stop_rx) = stop_rx {
+            match stop_rx.lock().unwrap().try_recv() {
+                Ok(()) => {
+                    printlnc!(red: "gpu stopped");
+                    return;
+                }
+                Err(TryRecvError::Empty) => {},
+                Err(TryRecvError::Disconnected) => {
+                    printlnc!(red: "gpu stop receiver disconnected");
+                    return;
+                },
+            }
+        }
 
         if talk { tracer.stage("cam") };
 
