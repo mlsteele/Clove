@@ -29,7 +29,8 @@ const CAM_ENABLE: bool = false;
 
 fn main() {
     // let dims: (u32, u32) = (848, 480); // cam dims
-    let dims: (u32, u32) = (1000, 500); // elephant dims
+    // let dims: (u32, u32) = (1000, 500); // elephant dims
+    let dims: (u32, u32) = (1920 / 2, 1080 / 2);
 
     let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
     let bg_color = [0.3, 0.0, 0.3, 1.];
@@ -110,7 +111,8 @@ fn main() {
     ).unwrap();
 
     // window.set_lazy(true);
-    let scaleup = 1.5;
+    // let scaleup = 1.5;
+    let scaleup = 2.0;
     while let Some(e) = window.next() {
         e.update(|_| {
             // Fake raindrop cursor
@@ -136,6 +138,7 @@ fn main() {
         e.release(|button| {
             if button == Button::Keyboard(Key::R) {
                 let _ = gpu_stop_sender.send(());
+
                 printlnc!(red: "reload");
             }
         });
@@ -159,4 +162,6 @@ fn main() {
             });
         });
     }
+
+    let _ = gpu_stop_sender.send(());
 }

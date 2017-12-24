@@ -283,15 +283,16 @@ __kernel void pastiche(
     /*     return;  */
     /* }  */
 
-    // Clear some pixels sometimes
-    /* if (rand_pm(&rand_seed) < 0.1) { */
-    /*     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id); */
-    /*     float4 out_mask_rgba = (float4)(0, 0, 0, 1); */
-    /*     write_imagef(out_canvas, pixel_id, src_rgba); */
-    /*     write_imagef(out_mask, pixel_id, out_mask_rgba); */
-    /*     return; */
-    /* } */
+    /* Clear some pixels sometimes */
+    /* if (rand_pm(&rand_seed) < 0.1) {  */
+    /*     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);  */
+    /*     float4 out_mask_rgba = (float4)(0, 0, 0, 1);  */
+    /*     write_imagef(out_canvas, pixel_id, src_rgba);  */
+    /*     write_imagef(out_mask, pixel_id, out_mask_rgba);  */
+    /*     return;  */
+    /* }  */
 
+    // Cursor
     if (cursor_enabled > 0 && time_ms > 4000) {
         const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy));
         if (distance_to_cursor < 40 + (20 * rand_pm(&rand_seed))) {
@@ -323,6 +324,7 @@ __kernel void pastiche(
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
+
     // TODO second term (rand off for circle) is wasteful
     if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.7) {
         // This spot is filled already. Copy over and get outta here.
@@ -363,14 +365,15 @@ __kernel void pastiche(
 	/* const float distance = rand_pm(&rand_seed); */
         /* out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1); */
 
-	const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
+	/* const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id); */
 
-	const float distance = .04;
+	/* const float distance = .04; */
 	/* const float distance = .01; */
 	/* const float distance = .005; */
 	/* const float distance = cos(convert_float(time_ms) * 0.0001) * .08f; */
 	/* const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f; */
-	/* out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed); */
+        const float distance = .08f;;
+	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
         /* const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000)); */
         /* const float factor = 0.1 * (1.0f - length(subject_rgba) / 3); */
         float max4len = length((float4)(1, 1, 1, 1));
@@ -379,9 +382,9 @@ __kernel void pastiche(
         /* } */
         /* float factor = 0.08f * (1.0f - length(subject_rgba) / max4len); */
         /* float factor = 0.04f; */
-        float factor = 0.1f;
-        const float4 departure_lounge = color_mix(factor, selected_neighbor_rgba, subject_rgba);
-	out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed);
+        /* float factor = 0.1f; */
+        /* const float4 departure_lounge = color_mix(factor, selected_neighbor_rgba, subject_rgba); */
+	/* out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed); */
 
 	/* /\* Write out the subject. *\/ */
 	/* if (rand_pm(&rand_seed) < 0.05) { */

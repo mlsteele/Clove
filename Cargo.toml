@@ -3,6 +3,11 @@ name = "pastiche"
 version = "0.1.0"
 authors = ["Miles Steele <miles@milessteele.com>"]
 
+# https://github.com/rust-lang/cargo/issues/1359
+# (doesn't seem to have any performance impact)
+# cargo-features = ["always-optimize-deps"]
+# always-optimize-deps = true
+
 [dependencies]
 colorify = "0.2.2"
 find_folder = "0.3.0"

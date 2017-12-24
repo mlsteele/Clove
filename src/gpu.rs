@@ -242,8 +242,11 @@ pub fn run_gpu_loop(
     //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
     // }
 
+    // // Start with a pixel in the middle.
+    // place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1),
+    //             &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
     // Start with a white pixel in the middle.
-    place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1),
+    place_pixel(center.0, center.1, white,
                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
 
     // Initialize the canvas
