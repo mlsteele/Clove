@@ -24,13 +24,13 @@ use std::time::Duration;
 use std::sync::mpsc;
 use common::{Turn, Cursor};
 
-const CAM_ENABLE: bool = false;
+const CAM_ENABLE: bool = true;
 
 fn main() {
-    // let dims: (u32, u32) = (848, 480); // cam dims
+    let dims: (u32, u32) = (848, 480); // cam dims
     // let dims: (u32, u32) = (1000, 500); // elephant dims
     // let dims: (u32, u32) = (1920 / 2, 1080 / 2);
-    let dims: (u32, u32) = (1000, 1000);
+    // let dims: (u32, u32) = (1000, 1000);
 
     #[allow(unused_variables)]
     let black: image::Rgba<u8> = image::Rgba([0u8, 0u8, 0u8, 255u8]);
@@ -52,12 +52,11 @@ fn main() {
     // Start the cam loop
     let cam_receiver = {
         let (tx, rx) = mpsc::sync_channel(1);
-        thread::Builder::new().name("cam".to_owned()).spawn(move || {
-            if CAM_ENABLE {
-                // Disable the cam
+        if CAM_ENABLE {
+            thread::Builder::new().name("cam".to_owned()).spawn(move || {
                 cam::cam_loop(dims, tx);
-            }
-        }).unwrap();
+            }).unwrap();
+        }
         rx
     };
 

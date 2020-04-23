@@ -16,6 +16,7 @@ pub fn cam_loop(dims: (u32, u32), sender: mpsc::SyncSender<CamImg>) {
             Ok(_) => {},
             Err(mpsc::TrySendError::Full(_)) => {},
             Err(mpsc::TrySendError::Disconnected(_)) => {
+                eprintln!("cam disconnected");
                 return
             }
         }

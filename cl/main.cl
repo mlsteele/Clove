@@ -63,7 +63,7 @@ __kernel void life(read_only image2d_t source, write_only image2d_t dest) {
     if (live_neighbors == 3 || (live && live_neighbors == 2)) {
         live = true;
     } else {
-	live = false;
+    live = false;
     }
     float4 dest_rgba = (float4)(.2,0,0,1);
     if (live) {
@@ -285,13 +285,13 @@ __kernel void pastiche(
     // }
 
     // Clear some pixels sometimes
-    // if (rand_pm(&rand_seed) < 0.1) {
-    //     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
-    //     float4 out_mask_rgba = (float4)(0, 0, 0, 1);
-    //     write_imagef(out_canvas, pixel_id, src_rgba);
-    //     write_imagef(out_mask, pixel_id, out_mask_rgba);
-    //     return;
-    // }
+    if (rand_pm(&rand_seed) < 0.1) {
+        const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
+        float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+        write_imagef(out_canvas, pixel_id, src_rgba);
+        write_imagef(out_mask, pixel_id, out_mask_rgba);
+        return;
+    }
 
     // Cursor blockout
     // if (cursor_enabled > 0 && time_ms > 4000) {
@@ -370,7 +370,6 @@ __kernel void pastiche(
 
         const int2 loc = pixel_id + dxy;
         bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
-        // bool select = true;
         if (in_bounds) {
             const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
             if (mask_neighbor.x > .5) {
@@ -382,9 +381,10 @@ __kernel void pastiche(
         }
     }
 
-    if (neighbors_dxy.y > 0) {
-        return;
-    }
+    // Only travel down to make a tree shape instead of a radiating circle.
+    // if (neighbors_dxy.y > 0) {
+    //     return;
+    // }
 
     // Whether we are on the frontier
     const bool self_frontier = n_hot_neighbors > 0;
@@ -393,20 +393,20 @@ __kernel void pastiche(
     float4 out_mask_rgba = (float4)(0, 0, 0, 1);
     if (self_frontier) {
         // out_canvas_rgba = (float4)(0, 1, .2, 1);
-	// out_canvas_rgba = selected_neighbor_rgba;
-	// TODO distance should be selected randomly (along a curve representative of original)
-	// const float distance = rand_pm(&rand_seed);
+        // out_canvas_rgba = selected_neighbor_rgba;
+        // TODO distance should be selected randomly (along a curve representative of original)
+        // const float distance = rand_pm(&rand_seed);
         // out_canvas_rgba = (float4)(0, .5, rand_pm(&rand_seed), 1);
 
-	// const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
+        // const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
 
-	// const float distance = .04;
-	// const float distance = .01;
-	// const float distance = .005;
-	// const float distance = cos(convert_float(time_ms) * 0.0001) * .08f;
-	// const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f;
+        // const float distance = .04;
+        // const float distance = .01;
+        // const float distance = .005;
+        // const float distance = cos(convert_float(time_ms) * 0.0001) * .08f;
+        // const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f;
         const float distance = .06f;;
-	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
+        out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
         // const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000));
         // const float factor = 0.1 * (1.0f - length(subject_rgba) / 3);
         float max4len = length((float4)(1, 1, 1, 1));
@@ -417,26 +417,26 @@ __kernel void pastiche(
         // float factor = 0.04f;
         // float factor = 0.1f;
         // const float4 departure_lounge = color_mix(factor, selected_neighbor_rgba, subject_rgba);
-	// out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed);
+        // out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed);
 
-	// /\* Write out the subject. *\/
-	// if (rand_pm(&rand_seed) < 0.05) {
-	//     const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
-	//     out_canvas_rgba = subject_rgba;
-	// }
+        // Write out the subject.
+        if (rand_pm(&rand_seed) < 0.06) {
+            const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
+            out_canvas_rgba = subject_rgba;
+        }
 
-	// Though must be close to elephant
-	// for (int i = 0; i < 100; i++) {
-	//     if (color_distance(subject_rgba, out_canvas_rgba) > 0.1) {
-	// 	// Re-reoll
-	// 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
-	//     } else {
-	//       break;
-	//     }
-	// }
+        // Though must be close to elephant
+        // for (int i = 0; i < 100; i++) {
+        //     if (color_distance(subject_rgba, out_canvas_rgba) > 0.1) {
+        // 	// Re-reoll
+        // 	out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
+        //     } else {
+        //       break;
+        //     }
+        // }
 
-	// const float rx = rand_pm(&rand_seed);
-	// out_canvas_rgba = (float4)(rx, rx, rx, 1);
+        // const float rx = rand_pm(&rand_seed);
+        // out_canvas_rgba = (float4)(rx, rx, rx, 1);
 
         // const float xjdf = rand_pm(&rand_seed);
         // out_canvas_rgba = (float4)(xjdf, xjdf, xjdf, 1.0);

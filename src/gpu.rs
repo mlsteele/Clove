@@ -148,7 +148,7 @@ pub fn run_gpu_loop(
 
     let mut img_subject: image::ImageBuffer<image::Rgba<u8>, Vec<u8>> = {
         // TODO subject may not be correct dims
-        if true {
+        if false {
             // Subject is an elephant
             image::open(&Path::new("resources/elephant.jpg"))
                 .expect("load subject")
@@ -352,15 +352,13 @@ pub fn run_gpu_loop(
     #[allow(unused_variables)]
     let cam_every = 10;
     let save_every = 1000;
-    // let die_at = 700;
-    let die_at = 10000;
 
     let start = time::Instant::now();
 
     'outer: for frame in 0.. {
         let talk: bool = frame % talk_every == 0;
-        // let cam: bool = frame % cam_every == 0;
-        let cam: bool = false;
+        let cam: bool = frame % cam_every == 0;
+        // let cam: bool = false;
 
         let mut tracer = TimeTracer::new("frame");
 
@@ -442,10 +440,10 @@ pub fn run_gpu_loop(
         // }
         // let target = target.unwrap();
         // let goal = ocl::prm::Float4::new(
-        //     (target.data[0] as f32) / 256.,
-        //     (target.data[1] as f32) / 256.,
-        //     (target.data[2] as f32) / 256.,
-        //     (target.data[3] as f32) / 256.
+        //     (target[0] as f32) / 256.,
+        //     (target[1] as f32) / 256.,
+        //     (target[2] as f32) / 256.,
+        //     (target[3] as f32) / 256.
         // );
 
         const RAND_PM_M: u32 = 2147483647; // 2**31-1
@@ -459,17 +457,12 @@ pub fn run_gpu_loop(
                 .queue(queue.clone());
             unsafe{ builder.use_host_slice(&host_rands) }.build().unwrap()
         };
-        // let rand = ocl::prm::Uint2::new(
-        //     rand::thread_rng().next_u32(),
-        //     rand::thread_rng().next_u32(),
-        // );
 
         kernel.set_arg_buf_named("rand", Some(&in_rands)).unwrap();
 
         let since = start.elapsed();
         kernel.set_arg_vec_named("time_ms", ocl::prm::Uint::new(duration_millis(&since) as u32)).unwrap();
 
-        // kernel.set_arg_vec_named("goal", goal).unwrap();
         {
             let cursor = cursor_shared.lock().unwrap();
             let enabled = if cursor.enabled { 1 } else { 0 };
@@ -495,12 +488,16 @@ pub fn run_gpu_loop(
 
         if talk { tracer.stage("place"); }
 
-        let place_every: u32 = 50;
-        if frame % place_every == 0 {
-            let i = frame / place_every;
-            if i < 10 {
-                place_pixel(center.0, center.1 - (i - 5) * 50 - 100, xmas_green,
-                            &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+        let xmas_tree = false;
+        if xmas_tree {
+            // xmas tree works with this size: let dims: (u32, u32) = (1000, 1000);
+            let place_every: u32 = 50;
+            if frame % place_every == 0 {
+                let i = frame / place_every;
+                if i < 10 {
+                    place_pixel(center.0, center.1 - (i - 5) * 50 - 100, xmas_green,
+                                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+                }
             }
         }
 
@@ -581,10 +578,6 @@ pub fn run_gpu_loop(
         }
 
         if talk { tracer.finish(); }
-
-        if frame > die_at {
-            return;
-        }
     }
 
     if save_enabled {
