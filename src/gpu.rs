@@ -16,8 +16,8 @@ use std::sync::mpsc;
 use cam;
 use cam::{CamImg};
 
-const MASK_WHITE: image::Luma<u8> = image::Luma{data: [255u8]};
-const MASK_BLACK: image::Luma<u8> = image::Luma{data: [0u8]};
+const MASK_WHITE: image::Luma<u8> = image::Luma([255u8]);
+const MASK_BLACK: image::Luma<u8> = image::Luma([0u8]);
 
 #[allow(dead_code)]
 fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -30,8 +30,8 @@ fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>
 fn min_pixel<I>(img: &I) -> (u32, u32, u16)
     where I: image::GenericImage<Pixel=image::Luma<u16>>
 {
-    let (x,y,px) = img.pixels().min_by_key(|&(_,_,v)| v.data[0]).unwrap();
-    (x, y, px.data[0])
+    let (x,y,px) = img.pixels().min_by_key(|&(_,_,v)| v[0]).unwrap();
+    (x, y, px[0])
 }
 
 // Pixels sorted by value.
@@ -42,8 +42,8 @@ fn sort_pixels_with_mask<I,M>(img: &I, mask: &M) -> Vec<(u32, u32, u16)>
           M: image::GenericImage<Pixel=image::Luma<u8>>
 {
     let mut choices: Vec<(u32,u32,u16)> = img.pixels().zip(mask.pixels()).filter_map(|((x,y,px), (_,_,map_px))| {
-        if map_px.data[0] > 127u8 {
-            Some((x,y,px.data[0]))
+        if map_px[0] > 127u8 {
+            Some((x,y,px[0]))
         } else {
             None
         }
@@ -86,7 +86,7 @@ fn neighbors_empty<M>(x: u32, y: u32, mask_filled: &M) -> Vec<(u32,u32)>
             if !is_self && in_bounds {
                 let nx = nx as u32;
                 let ny = ny as u32;
-                if mask_filled.get_pixel(nx,ny).data[0] <= 127u8 {
+                if mask_filled.get_pixel(nx,ny)[0] <= 127u8 {
                     neighbors.push((nx, ny));
                 }
             }
@@ -163,25 +163,25 @@ pub fn run_gpu_loop(
     let center = (dims.0 / 2, dims.1 / 2);
 
     #[allow(unused_variables)]
-    let black: image::Rgba<u8> = image::Rgba{data: [0u8, 0u8, 0u8, 255u8]};
+    let black: image::Rgba<u8> = image::Rgba([0u8, 0u8, 0u8, 255u8]);
     #[allow(unused_variables)]
-    let white: image::Rgba<u8> = image::Rgba{data: [255u8, 255u8, 255u8, 255u8]};
+    let white: image::Rgba<u8> = image::Rgba([255u8, 255u8, 255u8, 255u8]);
     #[allow(unused_variables)]
-    let red: image::Rgba<u8> = image::Rgba{data: [255u8, 0u8, 0u8, 255u8]};
+    let red: image::Rgba<u8> = image::Rgba([255u8, 0u8, 0u8, 255u8]);
     #[allow(unused_variables)]
-    let green: image::Rgba<u8> = image::Rgba{data: [0u8, 255u8, 0u8, 255u8]};
+    let green: image::Rgba<u8> = image::Rgba([0u8, 255u8, 0u8, 255u8]);
     #[allow(unused_variables)]
-    let blue: image::Rgba<u8> = image::Rgba{data: [0u8, 127u8, 255u8, 255u8]};
+    let blue: image::Rgba<u8> = image::Rgba([0u8, 127u8, 255u8, 255u8]);
     #[allow(unused_variables)]
-    let orange: image::Rgba<u8> = image::Rgba{data: [255u8, 127u8, 0u8, 255u8]};
+    let orange: image::Rgba<u8> = image::Rgba([255u8, 127u8, 0u8, 255u8]);
     // #[allow(unused_variables)]
     // let xmas_green: image::Rgba<u8> = image::Rgba{data: [7u8, 86u8, 0u8, 255u8]};
     #[allow(unused_variables)]
-    let xmas_green: image::Rgba<u8> = image::Rgba{data: [100u8, 186u8, 100u8, 255u8]};
+    let xmas_green: image::Rgba<u8> = image::Rgba([100u8, 186u8, 100u8, 255u8]);
     #[allow(unused_variables)]
-    let xmas_red: image::Rgba<u8> = image::Rgba{data: [170u8, 0u8, 0u8, 255u8]};
+    let xmas_red: image::Rgba<u8> = image::Rgba([170u8, 0u8, 0u8, 255u8]);
     #[allow(unused_variables)]
-    let xmas_yellow: image::Rgba<u8> = image::Rgba{data: [240u8, 219u8, 77u8, 255u8]};
+    let xmas_yellow: image::Rgba<u8> = image::Rgba([240u8, 219u8, 77u8, 255u8]);
 
     printlnc!(white_bold: "initializing color queue");
     #[allow(unused_variables)]
@@ -190,9 +190,9 @@ pub fn run_gpu_loop(
         let mut q = VecDeque::with_capacity(ncolors);
         for _ in 0..ncolors {
             let mut buf = [0u8; 4];
-            rand::thread_rng().fill_bytes(&mut buf);
+            rand::thread_rng().fill(&mut buf);
             buf[3] = 255u8;
-            q.push_back(image::Rgba{data: buf});
+            q.push_back(image::Rgba(buf));
         }
         q
     };
@@ -274,70 +274,79 @@ pub fn run_gpu_loop(
         img_canvas.save(&Path::new(&format!("result_{:06}.png", 0))).unwrap();
     }
 
-    let cl_in_canvas = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Rgba)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&img_canvas)
-        .build().unwrap();
+    let cl_in_canvas = {
+        let builder = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+            .queue(queue.clone());
+        unsafe { builder.use_host_slice(&img_canvas) }.build().unwrap()
+    };
 
-    let cl_in_mask_filled = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Luminance)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&img_mask_filled)
-        .build().unwrap();
+    let cl_in_mask_filled = {
+        let builder = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Luminance)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+            .queue(queue.clone());
+        unsafe { builder.use_host_slice(&img_mask_filled) }.build().unwrap()
+    };
 
-    let cl_in_subject = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Rgba)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&img_subject)
-        .build().unwrap();
+    let cl_in_subject = {
+        let builder = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+            .queue(queue.clone());
+        unsafe { builder.use_host_slice(&img_subject) }.build().unwrap()
+    };
 
-    let cl_out_canvas = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Rgba)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&img_canvas_dest)
-        .build().unwrap();
+    let cl_out_canvas = {
+        let builder = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Rgba)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY)
+            .queue(queue.clone());
 
-    let cl_out_mask_filled = Image::<u8>::builder()
-        .channel_order(ImageChannelOrder::Luminance)
-        .channel_data_type(ImageChannelDataType::UnormInt8)
-        .image_type(MemObjectType::Image2d)
-        .dims(&dims)
-        .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-        .queue(queue.clone())
-        .host_data(&img_mask_filled_dest)
-        .build().unwrap();
+        unsafe { builder.use_host_slice(&img_canvas_dest) }.build().unwrap()
+    };
 
-    let mut kernel = Kernel::new("pastiche", &program).unwrap()
+    let cl_out_mask_filled = {
+        let builder = Image::<u8>::builder()
+            .channel_order(ImageChannelOrder::Luminance)
+            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .image_type(MemObjectType::Image2d)
+            .dims(&dims)
+            .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY)
+            .queue(queue.clone());
+        unsafe { builder.use_host_slice(&img_mask_filled_dest) }.build().unwrap()
+    };
+
+    let mut kernel = Kernel::builder()
+        .name("pastiche")
+        .program(&program)
         .queue(queue.clone())
-        .gws(&dims)
-        .arg_img_named("canvas", Some(&cl_in_canvas))
-        .arg_img_named("mask_filled", Some(&cl_in_mask_filled))
-        .arg_img_named("subject", Some(&cl_in_subject))
-        .arg_buf_named::<_, ocl::Buffer<ocl::prm::Uint>>("rand", None)
-        .arg_vec_named::<ocl::prm::Uint>("time_ms", None)
-        .arg_vec_named::<ocl::prm::Uint>("cursor_enabled", None)
-        .arg_vec_named::<ocl::prm::Uint>("cursor_pressed", None)
-        .arg_vec_named::<ocl::prm::Uint2>("cursor_xy", None)
+        .global_work_size(&dims)
+        .arg_named("canvas", Some(&cl_in_canvas))
+        .arg_named("mask_filled", Some(&cl_in_mask_filled))
+        .arg_named("subject", Some(&cl_in_subject))
+        .arg_buf_named::<_, _, ocl::Buffer<ocl::prm::Uint>>("rand", None)
+        .arg_vec_named("time_ms", ocl::prm::Uint::new(0)) // placeholder value
+        .arg_vec_named("cursor_enabled", ocl::prm::Uint::new(0)) // placeholder value
+        .arg_vec_named("cursor_pressed", ocl::prm::Uint::new(0)) // placeholder value
+        .arg_vec_named("cursor_xy", ocl::prm::Uint2::new(0, 0)) // placeholder value
         // .arg_vec_named::<ocl::prm::Float4>("goal", None)
         .arg_img(&cl_out_canvas)
-        .arg_img(&cl_out_mask_filled);
+        .arg_img(&cl_out_mask_filled)
+        .build().unwrap();
 
     let talk_every = 200;
     #[allow(unused_variables)]
@@ -386,35 +395,38 @@ pub fn run_gpu_loop(
 
         if talk { tracer.stage("create memory bindings") };
 
-        let cl_in_canvas = Image::<u8>::builder()
-            .channel_order(ImageChannelOrder::Rgba)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_canvas)
-            .build().unwrap();
+        let cl_in_canvas = {
+            let builder = Image::<u8>::builder()
+                .channel_order(ImageChannelOrder::Rgba)
+                .channel_data_type(ImageChannelDataType::UnormInt8)
+                .image_type(MemObjectType::Image2d)
+                .dims(&dims)
+                .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+                .queue(queue.clone());
+            unsafe { builder.use_host_slice(&img_canvas) }.build().unwrap()
+        };
 
-        let cl_in_mask_filled = Image::<u8>::builder()
-            .channel_order(ImageChannelOrder::Luminance)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_mask_filled)
-            .build().unwrap();
+        let cl_in_mask_filled = {
+            let builder = Image::<u8>::builder()
+                .channel_order(ImageChannelOrder::Luminance)
+                .channel_data_type(ImageChannelDataType::UnormInt8)
+                .image_type(MemObjectType::Image2d)
+                .dims(&dims)
+                .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+                .queue(queue.clone());
+            unsafe { builder.use_host_slice(&img_mask_filled) }.build().unwrap()
+        };
 
-        let cl_in_subject = Image::<u8>::builder()
-            .channel_order(ImageChannelOrder::Rgba)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
-            .image_type(MemObjectType::Image2d)
-            .dims(&dims)
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .queue(queue.clone())
-            .host_data(&img_subject)
-            .build().unwrap();
+        let cl_in_subject = {
+            let builder = Image::<u8>::builder()
+                .channel_order(ImageChannelOrder::Rgba)
+                .channel_data_type(ImageChannelDataType::UnormInt8)
+                .image_type(MemObjectType::Image2d)
+                .dims(&dims)
+                .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+                .queue(queue.clone());
+            unsafe { builder.use_host_slice(&img_subject) }.build().unwrap()
+        };
 
         // cl_in_canvas.write(&img_canvas).enq().unwrap();
         // cl_in_mask_filled.write(&img_mask_filled).enq().unwrap();
@@ -437,16 +449,16 @@ pub fn run_gpu_loop(
         // );
 
         const RAND_PM_M: u32 = 2147483647; // 2**31-1
-        let host_rands: Vec<u32> = rand::thread_rng().gen_iter::<u32>()
-            .map(|x: u32| x % RAND_PM_M)
+        let host_rands: Vec<u32> = std::iter::repeat_with(||rand::thread_rng().gen::<u32>() % RAND_PM_M)
             .take((dims.0 * dims.1) as usize)
             .collect();
-        let in_rands = ocl::Buffer::builder()
-            .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY | ocl::flags::MEM_USE_HOST_PTR)
-            .dims(host_rands.len())
-            .queue(queue.clone())
-            .host_data(&host_rands)
-            .build().unwrap();
+        let in_rands = {
+            let builder = ocl::Buffer::builder()
+                .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
+                .len(host_rands.len())
+                .queue(queue.clone());
+            unsafe{ builder.use_host_slice(&host_rands) }.build().unwrap()
+        };
         // let rand = ocl::prm::Uint2::new(
         //     rand::thread_rng().next_u32(),
         //     rand::thread_rng().next_u32(),
@@ -471,7 +483,7 @@ pub fn run_gpu_loop(
         if talk { printlnc!(white_bold: "image dims: {:?}", &dims); }
 
         if talk { tracer.stage("kernel enqueue"); }
-        kernel.enq().unwrap();
+        unsafe{ kernel.enq().unwrap() };
 
         if talk { tracer.stage("finish queue"); }
         queue.finish().unwrap();

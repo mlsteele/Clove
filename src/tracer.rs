@@ -1,28 +1,27 @@
-use time;
-use time::{Timespec};
+use std::time::Instant;
 
 pub struct TimeTracer {
     label: String,
     stage: String,
     staged: bool,      // whether any stages were used
-    start: Timespec, // when the tracer started
-    prev: Timespec, // when the active stage started
+    start: Instant, // when the tracer started
+    prev: Instant, // when the active stage started
 }
 
 impl TimeTracer {
     pub fn new(label: &str) -> TimeTracer {
-        let start_time = time::get_time();
-	TimeTracer{
-	    label:  label.to_owned(),
-	    stage:  "init".to_owned(),
-	    staged: false,
-	    start:  start_time,
-	    prev:   start_time,
-	}
+        let start_time = Instant::now();
+        TimeTracer{
+            label:  label.to_owned(),
+            stage:  "init".to_owned(),
+            staged: false,
+            start:  start_time,
+            prev:   start_time,
+        }
     }
 
     pub fn stage(&mut self, label: &str) {
-        let now = time::get_time();
+        let now = Instant::now();
         self.finish_stage();
 	self.stage = label.to_owned();
 	self.prev = now;
@@ -31,27 +30,19 @@ impl TimeTracer {
 
     // consume self to indicate the object is no longer usable.
     pub fn finish(self) {
-        let now = time::get_time();
+        let now = Instant::now();
         let since_start = now - self.start;
         if self.staged {
             self.finish_stage();
         }
-        if let Some(us) = since_start.num_microseconds() {
-            printlnc!(green: "- {} [time={:?}us]", self.label, us);
-        } else {
-            let ms = since_start.num_milliseconds();
-            printlnc!(green: "- {} [time={}MS]", self.label, ms);
-        }
+        let us = since_start.as_micros();
+        printlnc!(green: "- {} [time={:?}us]", self.label, us);
     }
 
     fn finish_stage(&self) {
-        let now = time::get_time();
+        let now = Instant::now();
         let since_prev = now - self.prev;
-        if let Some(us) = since_prev.num_microseconds() {
-            printlnc!(green: "| {}:{} [time={:?}us]", self.label, self.stage, us);
-        } else {
-            let ms = since_prev.num_milliseconds();
-            printlnc!(green: "| {}:{} [time={}MS]", self.label, self.stage, ms);
-        }
+        let us = since_prev.as_micros();
+        printlnc!(green: "| {}:{} [time={:?}us]", self.label, self.stage, us);
     }
 }

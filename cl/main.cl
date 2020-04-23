@@ -112,7 +112,7 @@ float color_distance(float4 rgba1, float4 rgba2) {
     const float r = fabs(rgba1.x - rgba2.x);
     const float g = fabs(rgba1.y - rgba2.y);
     const float b = fabs(rgba1.z - rgba2.z);
-    return (r + g + b ) / 3; 
+    return (r + g + b ) / 3;
 }
 
 // Score each location based on how close its neighbors are to the goal color.
@@ -174,7 +174,7 @@ __kernel void score(
 float rand_xorshift(uint2 randoms, uint globalID) {
     // https://stackoverflow.com/questions/9912143/how-to-get-a-random-number-in-opencl
     uint seed = randoms.x + globalID;
-    uint t = seed ^ (seed << 11);  
+    uint t = seed ^ (seed << 11);
     uint result = randoms.y ^ (randoms.y >> 19) ^ (t ^ (t >> 8));
     return (float)result / 4294967295.0;
 }
@@ -214,9 +214,9 @@ float4 color_at_distance(float4 rgba1, float d, uint *rand_seed) {
     /* delta -= (float3)(.1, .1, .1); */
     /* delta = (float3)(-10, -10, 2); */
     delta = normalize(delta) * d;
-    const float r = rgba1.x + delta.x;   
-    const float g = rgba1.y + delta.y; 
-    const float b = rgba1.z + delta.z; 
+    const float r = rgba1.x + delta.x;
+    const float g = rgba1.y + delta.y;
+    const float b = rgba1.z + delta.z;
     /* return (float4)(r, g, b, 1); */
     float4 result = (float4)(r, g, b, rgba1.w);
     /* printf("%f\n", rgba1.z); */

@@ -1,7 +1,7 @@
 use camera_capture;
 use image;
 use std::sync::mpsc;
-use image::ConvertBuffer;
+use image::buffer::ConvertBuffer;
 
 pub type CamImg = image::ImageBuffer<image::Rgb<u8>, camera_capture::Frame>;
 

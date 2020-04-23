@@ -9,11 +9,10 @@ authors = ["Miles Steele <miles@milessteele.com>"]
 # always-optimize-deps = true
 
 [dependencies]
-colorify = "0.2.2"
+colorify = "0.2.3"
 find_folder = "0.3.0"
-image = "0.16.0"
-ocl = "0.15.0"
-piston_window = "0.71.1"
-rand = "0.3.14"
-time = "0.1.38"
-camera_capture = { git = "https://github.com/mlsteele/camera_capture.git", rev = "e356f10" }
+image = "0.23.4"
+ocl = "0.19.3"
+piston_window = "0.107.0"
+rand = "0.7.3"
+camera_capture = { git = "https://github.com/mlsteele/camera_capture.git", rev = "98863970e8b6eb3ec4a16a3851ac8990e8af5193" }
