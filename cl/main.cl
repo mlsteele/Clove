@@ -286,6 +286,7 @@ __kernel void pastiche(
 
     // Clear some pixels sometimes
     if (rand_pm(&rand_seed) < 0.1) {
+    // if (rand_pm(&rand_seed) + (convert_float(pixel_id.x) / convert_float(dims.x))*.1 > 1) {
         const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
         float4 out_mask_rgba = (float4)(0, 0, 0, 1);
         write_imagef(out_canvas, pixel_id, src_rgba);
@@ -409,7 +410,7 @@ __kernel void pastiche(
         out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
         // const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000));
         // const float factor = 0.1 * (1.0f - length(subject_rgba) / 3);
-        float max4len = length((float4)(1, 1, 1, 1));
+        // float max4len = length((float4)(1, 1, 1, 1));
         // if (length(subject_rgba) / max4len > 0.7f) {
         //     factor = 0.0f;
         // }
@@ -420,7 +421,9 @@ __kernel void pastiche(
         // out_canvas_rgba = color_at_distance(departure_lounge, distance, &rand_seed);
 
         // Write out the subject.
+        // const int grid_density = 50 * sin(convert_float(pixel_id.x)/100.f) * sin(convert_float(time_ms)/2000.f);
         if (rand_pm(&rand_seed) < 0.06) {
+        // if ((rand_pm(&rand_seed) < 0.9) && (pixel_id.x % grid_density == 0 || pixel_id.y % grid_density == 0)) {
             const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
             out_canvas_rgba = subject_rgba;
         }
