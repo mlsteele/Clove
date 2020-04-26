@@ -16,8 +16,8 @@ use std::sync::mpsc;
 use cam;
 use cam::{CamImg};
 
-const MASK_WHITE: image::Luma<u8> = image::Luma([255u8]);
-const MASK_BLACK: image::Luma<u8> = image::Luma([0u8]);
+type MaskVal = u8;
+const MASK_ZERO: image::Luma<MaskVal> = image::Luma([0]);
 
 #[allow(dead_code)]
 fn read_source_image(loco : &str) -> image::ImageBuffer<image::Rgba<u8>, Vec<u8>> {
@@ -122,6 +122,7 @@ pub fn run_gpu_loop(
     cam_rx: Arc<Mutex<mpsc::Receiver<CamImg>>>,
     stop_rx: Option<Arc<Mutex<mpsc::Receiver<()>>>>,
 ) {
+    let mut rng = rand::thread_rng();
     let compute_program = Search::ParentsThenKids(3, 3)
         .for_folder("cl").expect("Error locating 'cl'")
         .join("main.cl");
@@ -190,7 +191,7 @@ pub fn run_gpu_loop(
         let mut q = VecDeque::with_capacity(ncolors);
         for _ in 0..ncolors {
             let mut buf = [0u8; 4];
-            rand::thread_rng().fill(&mut buf);
+            rng.fill(&mut buf);
             buf[3] = 255u8;
             q.push_back(image::Rgba(buf));
         }
@@ -211,35 +212,24 @@ pub fn run_gpu_loop(
     // img_canvas.put_pixel(2, 4, white);
 
     // Which pixels are filled.
-    let mut img_mask_filled: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, MASK_BLACK);
+    let mut img_mask_filled: image::ImageBuffer<image::Luma<MaskVal>, Vec<MaskVal>> = image::ImageBuffer::from_pixel(
+        dims.0, dims.1, image::Luma([0]));
     // temporary destination buffer
     let img_mask_filled_dest = img_mask_filled.clone();
-
-    // Which pixels are on the frontier.
-    let mut img_mask_frontier: image::ImageBuffer<image::Luma<u8>, Vec<u8>> = image::ImageBuffer::from_pixel(
-        dims.0, dims.1, MASK_BLACK);
 
     // let mut img_score: image::ImageBuffer<image::Luma<u16>, Vec<u16>> = image::ImageBuffer::from_pixel(
     //     dims.0, dims.1, image::Luma{data: [0u16]});
 
-    fn place_pixel<I,M>(x: u32, y: u32, color: image::Rgba<u8>,
-                   canvas: &mut I, mask_filled: &mut M, mask_frontier: &mut M)
+    fn place_pixel<I,M>(x: u32, y: u32, color: image::Rgba<u8>, mask_value: MaskVal,
+                   canvas: &mut I, mask_filled: &mut M)
         where I: image::GenericImage<Pixel=image::Rgba<u8>>,
-              M: image::GenericImage<Pixel=image::Luma<u8>>
+              M: image::GenericImage<Pixel=image::Luma<MaskVal>>
     {
         // printlnc!(red: "placing {} {}", x, y);
         canvas.put_pixel(x, y, color);
         // Mark as filled
-        mask_filled.put_pixel(x, y, MASK_WHITE);
-        // Remove from frontier
-        // printlnc!(green: "frontier OFF {} {}", x, y);
-        mask_frontier.put_pixel(x, y, MASK_BLACK);
+        mask_filled.put_pixel(x, y, image::Luma([mask_value]));
         // Add neighbors to frontier
-        for &(nx, ny) in neighbors_empty::<M>(x, y, &mask_filled).iter() {
-            // printlnc!(green: "frontier ON {} {}", nx, ny);
-            mask_frontier.put_pixel(nx, ny, MASK_WHITE);
-        }
     };
 
     // Draw a sunset bar
@@ -250,9 +240,12 @@ pub fn run_gpu_loop(
     //                 &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
     // }
 
-    // // Start with a pixel in the middle.
-    // place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1),
-    //             &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+    // Start with a pixel in the middle.
+    place_pixel(center.0, center.1, *img_subject.get_pixel(center.0, center.1), 1,
+                &mut img_canvas, &mut img_mask_filled);
+
+    place_pixel(center.0+80, center.1, *img_subject.get_pixel(center.0, center.1), 2,
+                &mut img_canvas, &mut img_mask_filled);
 
     // Initialize the canvas
     // printlnc!(white_bold: "setting up board");
@@ -288,7 +281,7 @@ pub fn run_gpu_loop(
     let cl_in_mask_filled = {
         let builder = Image::<u8>::builder()
             .channel_order(ImageChannelOrder::Luminance)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .channel_data_type(ImageChannelDataType::UnsignedInt8)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
             .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
@@ -322,7 +315,7 @@ pub fn run_gpu_loop(
     let cl_out_mask_filled = {
         let builder = Image::<u8>::builder()
             .channel_order(ImageChannelOrder::Luminance)
-            .channel_data_type(ImageChannelDataType::UnormInt8)
+            .channel_data_type(ImageChannelDataType::UnsignedInt8)
             .image_type(MemObjectType::Image2d)
             .dims(&dims)
             .flags(ocl::flags::MEM_WRITE_ONLY | ocl::flags::MEM_HOST_READ_ONLY)
@@ -352,6 +345,7 @@ pub fn run_gpu_loop(
     #[allow(unused_variables)]
     let cam_every = 10;
     let save_every = 1000;
+    let mut last_drop = 1;
 
     let start = time::Instant::now();
 
@@ -407,7 +401,7 @@ pub fn run_gpu_loop(
         let cl_in_mask_filled = {
             let builder = Image::<u8>::builder()
                 .channel_order(ImageChannelOrder::Luminance)
-                .channel_data_type(ImageChannelDataType::UnormInt8)
+                .channel_data_type(ImageChannelDataType::UnsignedInt8)
                 .image_type(MemObjectType::Image2d)
                 .dims(&dims)
                 .flags(ocl::flags::MEM_READ_ONLY | ocl::flags::MEM_HOST_WRITE_ONLY)
@@ -495,10 +489,18 @@ pub fn run_gpu_loop(
             if frame % place_every == 0 {
                 let i = frame / place_every;
                 if i < 10 {
-                    place_pixel(center.0, center.1 - (i - 5) * 50 - 100, xmas_green,
-                                &mut img_canvas, &mut img_mask_filled, &mut img_mask_frontier);
+                    place_pixel(center.0, center.1 - (i - 5) * 50 - 100, xmas_green, 1,
+                                &mut img_canvas, &mut img_mask_filled);
                 }
             }
+        }
+
+        let random_drops = true;
+        if random_drops && frame % 100 == 0 {
+            let (x, y) = (rng.gen_range(0,dims.0), rng.gen_range(0,dims.1));
+            place_pixel(x, y, *img_subject.get_pixel(x, y), last_drop+1,
+                        &mut img_canvas, &mut img_mask_filled);
+            last_drop += 1;
         }
 
         // if let Some((x, y, _)) = min_pixel_with_mask(&img_score, &img_mask_frontier) {

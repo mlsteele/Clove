@@ -246,7 +246,7 @@ __constant int2 neighbor_deltas[8] = {
 };
 
 // Pick a new color for pixels on the frontier.
-// Mask is hot for pixels that are already filled.
+// Mask determines which frontier a pixel is part of. 0 means not started. 1 mean first generation. Etc.
 __kernel void pastiche(
     read_only image2d_t in_canvas,
     read_only image2d_t in_mask,
@@ -332,19 +332,19 @@ __kernel void pastiche(
                 const float4 out_canvas_rgba = (float4)(0.667, 0, 0, 1);
                 write_imagef(out_canvas, pixel_id, out_canvas_rgba);
 
-                float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+                uint4 out_mask_rgba = (uint4)(0, 0, 0, 1);
                 if (distance_to_cursor < 5) {
-                    out_mask_rgba = (float4)(1, 1, 1, 1);
+                    out_mask_rgba = (uint4)(1, 1, 1, 1);
                 }
-                write_imagef(out_mask, pixel_id, out_mask_rgba);
+                write_imageui(out_mask, pixel_id, out_mask_rgba);
                 return;
             }
         } else {
             if (distance_to_cursor < 2) {
                 const float4 out_canvas_rgba = (float4)(1, 1, 1, 1);
                 write_imagef(out_canvas, pixel_id, out_canvas_rgba);
-                const float4 out_mask_rgba = (float4)(1, 1, 1, 1);
-                write_imagef(out_mask, pixel_id, out_mask_rgba);
+                const uint4 out_mask_rgba = (uint4)(1, 1, 1, 1);
+                write_imageui(out_mask, pixel_id, out_mask_rgba);
                 return;
             }
         }
@@ -365,38 +365,39 @@ __kernel void pastiche(
     // }
 
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
-    const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
-
+    const uint4 mask_self = read_imageui(in_mask, sampler_const, pixel_id);
 
     // Slow it all down. Causes growth in a fuzzy circle rather than a strict square.
     if (rand_pm(&rand_seed) < 0.7) {
         return;
     }
 
-    if (mask_self.x > .5) {
-        // This spot is filled already. Copy over and get outta here.
-        return;
-    }
-
-    int n_hot_neighbors = 0;
-    // TODO neighbor should be selected randomly
+    uint max_neighbor_mask = 0;
     float4 selected_neighbor_rgba = (float4)(1,0,1,1);
     int neighbor_index_offset = rand_pm_uint(&rand_seed) % 8;
-    int2 neighbors_dxy = (int2)(0, 0);
+    // int2 neighbors_dxy = (int2)(0, 0);
     for (int i = 0; i < 8; i++) {
         int2 dxy = neighbor_deltas[(i + neighbor_index_offset) % 8];
-
         const int2 loc = pixel_id + dxy;
         bool in_bounds = (loc.x >= 0 && loc.y >= 0 && loc.x < dims.x && loc.y < dims.y);
         if (in_bounds) {
-            const float4 mask_neighbor = read_imagef(in_mask, sampler_const, loc);
-            if (mask_neighbor.x > .5) {
-                n_hot_neighbors += 1;
+            const int4 mask_neighbor = read_imagei(in_mask, sampler_const, loc);
+            if (mask_neighbor.x > max_neighbor_mask) {
+                max_neighbor_mask = mask_neighbor.x;
                 const float4 rgba_neighbor = read_imagef(in_canvas, sampler_const, loc);
                 selected_neighbor_rgba = rgba_neighbor;
-                neighbors_dxy += dxy;
+                // neighbors_dxy += dxy;
             }
         }
+    }
+
+    if (max_neighbor_mask == 0) {
+        // No interesting neighbors.
+        return;
+    }
+    if (mask_self.x >= max_neighbor_mask) {
+        // This spot is filled with the latest nearby generation already.
+        return;
     }
 
     // Only travel down to make a tree shape instead of a radiating circle.
@@ -405,10 +406,10 @@ __kernel void pastiche(
     // }
 
     // Whether we are on the frontier
-    const bool self_frontier = n_hot_neighbors > 0;
+    const bool self_frontier = max_neighbor_mask > 0;
 
     float4 out_canvas_rgba = src_rgba;
-    float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+    uint4 out_mask_rgba = mask_self;
     if (self_frontier) {
         // out_canvas_rgba = (float4)(0, 1, .2, 1);
         // out_canvas_rgba = selected_neighbor_rgba;
@@ -439,8 +440,12 @@ __kernel void pastiche(
 
         // Write out the subject.
         // const int grid_density = 50 * sin(convert_float(pixel_id.x)/100.f) * sin(convert_float(time_ms)/2000.f);
-        if (rand_pm(&rand_seed) < 0.06) {
         // if ((rand_pm(&rand_seed) < 0.9) && (pixel_id.x % grid_density == 0 || pixel_id.y % grid_density == 0)) {
+        float subject_chance = 0.06;
+        if (max_neighbor_mask % 3 == 0) {
+            subject_chance = 0.02;
+        }
+        if (rand_pm(&rand_seed) < subject_chance) {
             const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
             out_canvas_rgba = subject_rgba;
         }
@@ -461,8 +466,19 @@ __kernel void pastiche(
         // const float xjdf = rand_pm(&rand_seed);
         // out_canvas_rgba = (float4)(xjdf, xjdf, xjdf, 1.0);
         // out_canvas_rgba = (float4)(rand_pm(&rand_seed), rand_pm(&rand_seed), rand_pm(&rand_seed), 1);
-        out_mask_rgba = (float4)(1, 1, 1, 1);
+        out_mask_rgba = (uint4)(max_neighbor_mask, max_neighbor_mask, max_neighbor_mask, max_neighbor_mask);
     }
+    // if (mask_self.x == 0) {
+    //     out_canvas_rgba = (float4)(0.2,0.2,0,1);
+    // } else if (mask_self.x == 1) {
+    //     out_canvas_rgba = (float4)(1,0,0,1);
+    // } else if (mask_self.x == 2) {
+    //     out_canvas_rgba = (float4)(0,1,0,1);
+    // } else if (mask_self.x == 3) {
+    //     out_canvas_rgba = (float4)(0,0,1,1);
+    // } else {
+    //     out_canvas_rgba = (float4)(1,1,.5,1);
+    // }
     write_imagef(out_canvas, pixel_id, out_canvas_rgba);
-    write_imagef(out_mask, pixel_id, out_mask_rgba);
+    write_imageui(out_mask, pixel_id, out_mask_rgba);
 }
