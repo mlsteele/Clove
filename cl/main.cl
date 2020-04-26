@@ -260,10 +260,13 @@ __kernel void pastiche(
     write_only image2d_t out_mask)
 {
     const int2 pixel_id = (int2)(get_global_id(0), get_global_id(1));
-    // const float2 pixel_idf  = (float2)((float)pixel_id.x, (float)pixel_id.y);
-    const uint rand_id = get_global_id(0) + get_global_id(1) * get_global_size(0);
-    uint rand_seed = rand[rand_id];
     const int2 dims = get_image_dim(out_canvas);
+    // const float2 pixel_idf  = (float2)((float)pixel_id.x, (float)pixel_id.y);
+
+    // per-pixel rand
+    const uint rand_id = get_global_id(0) + get_global_id(1) * get_global_size(0);
+    uint rand_seed = rand[rand_id]; // per-pixel rand
+    uint rand_seed_frame = rand[0]; // per-frame rand
 
     // Show the subject
     // const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
@@ -285,14 +288,25 @@ __kernel void pastiche(
     // }
 
     // Clear some pixels sometimes
-    if (rand_pm(&rand_seed) < 0.1) {
-    // if (rand_pm(&rand_seed) + (convert_float(pixel_id.x) / convert_float(dims.x))*.1 > 1) {
-        const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
-        float4 out_mask_rgba = (float4)(0, 0, 0, 1);
-        write_imagef(out_canvas, pixel_id, src_rgba);
-        write_imagef(out_mask, pixel_id, out_mask_rgba);
-        return;
-    }
+    // if (rand_pm(&rand_seed) < 0.1) {
+    // // if (rand_pm(&rand_seed) + (convert_float(pixel_id.x) / convert_float(dims.x))*.1 > 1) {
+    //     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
+    //     float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+    //     write_imagef(out_canvas, pixel_id, src_rgba);
+    //     write_imagef(out_mask, pixel_id, out_mask_rgba);
+    //     return;
+    // }
+
+    // // Refresh pixels from circles
+    // for (int i = 0; i < 1; i++) {
+    //     const float2 refresher = (float2)(rand_pm(&rand_seed_frame) * dims.x, rand_pm(&rand_seed_frame) * dims.y);
+    //     if (distance(convert_float2(pixel_id), refresher) <= 50) {
+    //         float4 out_mask_rgba = (float4)(0, 0, 0, 1);
+    //         // write_imagef(out_canvas, pixel_id, (float4)(1, 1, 1, 1));
+    //         write_imagef(out_mask, pixel_id, out_mask_rgba);
+    //         return;
+    //     }
+    // }
 
     // Cursor blockout
     // if (cursor_enabled > 0 && time_ms > 4000) {
@@ -353,11 +367,14 @@ __kernel void pastiche(
     const float4 src_rgba = read_imagef(in_canvas, sampler_const, pixel_id);
     const float4 mask_self = read_imagef(in_mask, sampler_const, pixel_id);
 
-    // TODO second term (rand off for circle) is wasteful
-    if (mask_self.x > .5 || rand_pm(&rand_seed) < 0.7) {
+
+    // Slow it all down. Causes growth in a fuzzy circle rather than a strict square.
+    if (rand_pm(&rand_seed) < 0.7) {
+        return;
+    }
+
+    if (mask_self.x > .5) {
         // This spot is filled already. Copy over and get outta here.
-        write_imagef(out_canvas, pixel_id, src_rgba);
-        write_imagef(out_mask, pixel_id, mask_self);
         return;
     }
 
