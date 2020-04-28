@@ -368,7 +368,7 @@ __kernel void pastiche(
     const uint4 mask_self = read_imageui(in_mask, sampler_const, pixel_id);
 
     // Slow it all down. Causes growth in a fuzzy circle rather than a strict square.
-    if (rand_pm(&rand_seed) < 0.7) {
+    if (rand_pm(&rand_seed) < 0.55) {
         return;
     }
 
@@ -424,8 +424,8 @@ __kernel void pastiche(
         // const float distance = .005;
         // const float distance = cos(convert_float(time_ms) * 0.0001) * .08f;
         // const float distance = cos(convert_float(pixel_id.x) * 0.004) * .08f;
-        const float distance = .06f;;
-        out_canvas_rgba = color_at_distance(selected_neighbor_rgba, distance, &rand_seed);
+        const float color_distance = .06f;;
+        out_canvas_rgba = color_at_distance(selected_neighbor_rgba, color_distance, &rand_seed);
         // const float factor = 0.02 + 0.02 * -cos(convert_float(time_ms / 3000));
         // const float factor = 0.1 * (1.0f - length(subject_rgba) / 3);
         // float max4len = length((float4)(1, 1, 1, 1));
@@ -442,9 +442,9 @@ __kernel void pastiche(
         // const int grid_density = 50 * sin(convert_float(pixel_id.x)/100.f) * sin(convert_float(time_ms)/2000.f);
         // if ((rand_pm(&rand_seed) < 0.9) && (pixel_id.x % grid_density == 0 || pixel_id.y % grid_density == 0)) {
         float subject_chance = 0.06;
-        if (max_neighbor_mask % 3 == 0) {
-            subject_chance = 0.02;
-        }
+        const float distance_to_cursor = distance(convert_float2(pixel_id), convert_float2(cursor_xy));
+        const float distance_to_cursor_normed = distance_to_cursor / distance((float2)(0.f, 0.f), convert_float2(dims));
+        subject_chance = 0.3 - (distance_to_cursor_normed*1);
         if (rand_pm(&rand_seed) < subject_chance) {
             const float4 subject_rgba = read_imagef(in_subject, sampler_const, pixel_id);
             out_canvas_rgba = subject_rgba;

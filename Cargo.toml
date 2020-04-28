@@ -16,3 +16,7 @@ ocl = "0.19.3"
 piston_window = "0.107.0"
 rand = "0.7.3"
 camera_capture = { git = "https://github.com/mlsteele/camera_capture.git", rev = "98863970e8b6eb3ec4a16a3851ac8990e8af5193" }
+
+# Set the default for dependencies.
+[profile.dev.package."*"]
+opt-level = 3
